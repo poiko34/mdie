@@ -6,6 +6,7 @@
 #include "pe.h"
 
 void print_sections(
+    FILE *file,
     const PE_SECTION_INFO *sections,
     size_t count
 );

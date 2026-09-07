@@ -14,7 +14,7 @@ SRC = \
 OBJ = $(SRC:src/%.c=build/%.o)
 
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $@
+	$(CC) $(OBJ) -o $@ -lm
 
 build/%.o: src/%.c
 	@mkdir -p build

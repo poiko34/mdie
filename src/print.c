@@ -4,22 +4,27 @@
 #include "pe_defs.h"
 #include "pe_utils.h"
 
-void print_sections(const PE_SECTION_INFO *sections, size_t count)
+void print_sections(
+    FILE *file,
+    const PE_SECTION_INFO *sections,
+    size_t count
+)
 {
     printf("\nSections: %zu\n\n", count);
 
     printf(
-        "%-8s %-8s %-8s %-8s %-8s %-6s\n",
+        "%-8s %-8s %-8s %-8s %-8s %-8s %-6s\n",
         "Name",
         "RVA",
         "VSize",
         "RawSize",
         "RawPtr",
+        "Entropy",
         "Flags"
     );
 
     printf(
-        "-------- -------- -------- -------- -------- ------\n"
+        "-------- -------- -------- -------- -------- -------- ------\n"
     );
 
     for (size_t i = 0; i < count; i++) {
@@ -30,18 +35,26 @@ void print_sections(const PE_SECTION_INFO *sections, size_t count)
             perms
         );
 
+        double entropy = calculate_entropy(
+            file,
+            sections[i].pointer_to_raw_data,
+            sections[i].size_of_raw_data
+        );
+
         printf(
             "%-8.8s "
             "%08" PRIX32 " "
             "%08" PRIX32 " "
             "%08" PRIX32 " "
             "%08" PRIX32 " "
+            "%-8.2f "
             "%-6s\n",
             sections[i].name,
             sections[i].virtual_address,
             sections[i].virtual_size,
             sections[i].size_of_raw_data,
             sections[i].pointer_to_raw_data,
+            entropy,
             perms
         );
     }

@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     }
 
     print_pe_info(&dos, &file_header, &optional);
-    print_sections(sections, sections_count);
+    print_sections(file, sections, sections_count);
 
     free(sections);
     fclose(file);
