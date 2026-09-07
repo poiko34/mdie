@@ -69,6 +69,7 @@ int read_nt_header(
 
 int read_optional_header(
     FILE *file,
+    uint16_t size_of_optional_header,
     PE_OPTIONAL_INFO *info
 );
 

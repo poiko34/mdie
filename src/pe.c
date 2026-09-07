@@ -11,6 +11,20 @@ int read_nt_header(
     long *optional_header_offset
 )
 {
+    if (fseek(file, 0, SEEK_END) != 0) {
+        return 0;
+    }
+
+    long file_size = ftell(file);
+
+    if (file_size < 0) {
+        return 0;
+    }
+
+    if (fseek(file, 0, SEEK_SET) != 0) {
+        return 0;
+    }
+
     /* DOS signature */
     if (fread(&dos->e_magic, sizeof(dos->e_magic), 1, file) != 1) {
         return 0;
@@ -30,6 +44,15 @@ int read_nt_header(
     }
 
     if (fread(&dos->e_lfanew, sizeof(dos->e_lfanew), 1, file) != 1) {
+        return 0;
+    }
+
+    if (dos->e_lfanew < 0 ||
+        dos->e_lfanew > file_size - (long)sizeof(uint32_t)) {
+        fprintf(
+            stderr,
+            "Invalid e_lfanew: PE signature offset out of file bounds\n"
+        );
         return 0;
     }
 
@@ -59,7 +82,11 @@ int read_nt_header(
     return 1;
 }
 
-int read_optional_header(FILE *file, PE_OPTIONAL_INFO *info)
+int read_optional_header(
+    FILE *file,
+    uint16_t size_of_optional_header,
+    PE_OPTIONAL_INFO *info
+)
 {
     uint16_t optional_magic;
 
@@ -68,6 +95,35 @@ int read_optional_header(FILE *file, PE_OPTIONAL_INFO *info)
     }
 
     info->magic = optional_magic;
+
+    /* Minimum standard-fields size for each known Optional Header variant
+     * (i.e. without data directories). Used to reject a declared
+     * SizeOfOptionalHeader that is too small to hold the fields this
+     * function is about to read. */
+    size_t min_optional_header_size;
+
+    if (optional_magic == PE32) {
+        min_optional_header_size = 96;
+    } else if (optional_magic == PE32P) {
+        min_optional_header_size = 112;
+    } else {
+        fprintf(
+            stderr,
+            "Unknown Optional Header magic: 0x%04X\n",
+            optional_magic
+        );
+        return 0;
+    }
+
+    if (size_of_optional_header < min_optional_header_size) {
+        fprintf(
+            stderr,
+            "Optional header too small: %u bytes (need at least %zu)\n",
+            size_of_optional_header,
+            min_optional_header_size
+        );
+        return 0;
+    }
 
     /* Common fields */
     if (fread(&info->major_linker_version,
@@ -119,18 +175,12 @@ int read_optional_header(FILE *file, PE_OPTIONAL_INFO *info)
         }
 
         info->image_base = image_base_32;
-    } else if (optional_magic == PE32P) {
+    } else {
+        /* PE32P: already validated above */
         if (fread(&info->image_base,
                   sizeof(info->image_base), 1, file) != 1) {
             return 0;
         }
-    } else {
-        fprintf(
-            stderr,
-            "Unknown Optional Header magic: 0x%04X\n",
-            optional_magic
-        );
-        return 0;
     }
 
     /* SectionAlignment & FileAlignment */

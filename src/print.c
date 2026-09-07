@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdio.h>
 
 #include "print.h"
 #include "pe_defs.h"
@@ -35,11 +36,18 @@ void print_sections(
             perms
         );
 
-        double entropy = calculate_entropy(
-            file,
-            sections[i].pointer_to_raw_data,
-            sections[i].size_of_raw_data
-        );
+        char entropy_str[16];
+        double entropy;
+
+        if (calculate_entropy(
+                file,
+                sections[i].pointer_to_raw_data,
+                sections[i].size_of_raw_data,
+                &entropy)) {
+            snprintf(entropy_str, sizeof(entropy_str), "%.2f", entropy);
+        } else {
+            snprintf(entropy_str, sizeof(entropy_str), "N/A");
+        }
 
         printf(
             "%-8.8s "
@@ -47,14 +55,14 @@ void print_sections(
             "%08" PRIX32 " "
             "%08" PRIX32 " "
             "%08" PRIX32 " "
-            "%-8.2f "
+            "%-8s "
             "%-6s\n",
             sections[i].name,
             sections[i].virtual_address,
             sections[i].virtual_size,
             sections[i].size_of_raw_data,
             sections[i].pointer_to_raw_data,
-            entropy,
+            entropy_str,
             perms
         );
     }
@@ -71,6 +79,14 @@ void print_pe_info(
 
     printf("Machine:         0x%04X\n", file_header->machine);
     printf("Sections:        %u\n", file_header->number_of_sections);
+    printf(
+        "Timestamp:       0x%08" PRIX32 "\n",
+        file_header->timestamp
+    );
+    printf(
+        "Characteristics: 0x%04X\n",
+        file_header->characteristics
+    );
 
     printf(
         "Optional Header: %s\n",
@@ -106,5 +122,10 @@ void print_pe_info(
     printf(
         "Image Size:      0x%08" PRIX32 "\n",
         optional->size_of_image
+    );
+
+    printf(
+        "Header Size:     0x%08" PRIX32 "\n",
+        optional->size_of_headers
     );
 }

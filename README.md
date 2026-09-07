@@ -164,6 +164,8 @@ e_magic:         0x5A4D
 e_lfanew:        0x00000080
 Machine:         0x014C
 Sections:        17
+Timestamp:       0x5F3759DF
+Characteristics: 0x0102
 Optional Header: PE32
 Linker version:  2.47
 Entry Point:     0x00001460
@@ -171,6 +173,7 @@ Image Base:      0x0000000000400000
 Section Align:   0x00001000
 File Align:      0x00000200
 Image Size:      0x00022000
+Header Size:     0x00000400
 
 Sections: 17
 

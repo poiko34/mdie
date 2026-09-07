@@ -11,10 +11,11 @@ void get_section_perms(
     char *perm_str
 );
 
-double calculate_entropy(
-    FILE *file, 
+int calculate_entropy(
+    FILE *file,
     uint32_t offset,
-    uint32_t size
+    uint32_t size,
+    double *entropy
 );
 
 #endif

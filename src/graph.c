@@ -65,6 +65,14 @@ static void print_entropy_block(double entropy)
     printf("\033[38;2;%d;%d;%dm█\033[0m", col.r, col.g, col.b);
 }
 
+/* Print a marker for a byte range whose entropy could not be read,
+ * distinct from any valid entropy color so it isn't mistaken for
+ * low-entropy data. */
+static void print_entropy_error_block(void)
+{
+    printf("\033[38;2;128;128;128m?\033[0m");
+}
+
 void print_entropy_graph(
     FILE *file,
     const PE_SECTION_INFO *sections,
@@ -131,14 +139,13 @@ void print_entropy_graph(
                 ? remaining
                 : (uint32_t)block_size;
 
-            double entropy = calculate_entropy(
-                file,
-                offset,
-                current_size
-            );
+            double entropy;
 
-            /* Print colored block instead of a character */
-            print_entropy_block(entropy);
+            if (calculate_entropy(file, offset, current_size, &entropy)) {
+                print_entropy_block(entropy);
+            } else {
+                print_entropy_error_block();
+            }
 
             offset += current_size;
             remaining -= current_size;

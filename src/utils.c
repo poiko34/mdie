@@ -19,24 +19,27 @@ void get_section_perms(uint32_t ch, char *perm_str)
     perm_str[6] = '\0';
 }
 
-double calculate_entropy(
+int calculate_entropy(
     FILE *file,
     uint32_t offset,
-    uint32_t size
+    uint32_t size,
+    double *entropy
 )
 {
+    *entropy = 0.0;
+
     if (size == 0) {
-        return 0.0;
+        return 1;
     }
 
     long original_position = ftell(file);
 
     if (original_position < 0) {
-        return 0.0;
+        return 0;
     }
 
     if (fseek(file, offset, SEEK_SET) != 0) {
-        return 0.0;
+        return 0;
     }
 
     unsigned long frequencies[256] = {0};
@@ -53,7 +56,7 @@ double calculate_entropy(
 
         if (bytes_read == 0) {
             fseek(file, original_position, SEEK_SET);
-            return 0.0;
+            return 0;
         }
 
         for (size_t i = 0; i < bytes_read; i++) {
@@ -63,9 +66,11 @@ double calculate_entropy(
         remaining -= (uint32_t)bytes_read;
     }
 
-    fseek(file, original_position, SEEK_SET);
+    if (fseek(file, original_position, SEEK_SET) != 0) {
+        return 0;
+    }
 
-    double entropy = 0.0;
+    double result = 0.0;
 
     for (size_t i = 0; i < 256; i++) {
         if (frequencies[i] == 0) {
@@ -75,8 +80,10 @@ double calculate_entropy(
         double probability =
             (double)frequencies[i] / (double)size;
 
-        entropy -= probability * log2(probability);
+        result -= probability * log2(probability);
     }
 
-    return entropy;
+    *entropy = result;
+
+    return 1;
 }

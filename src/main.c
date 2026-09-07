@@ -86,7 +86,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (!read_optional_header(file, &optional)) {
+    if (!read_optional_header(
+            file,
+            file_header.size_of_optional_header,
+            &optional)) {
         fclose(file);
         return 1;
     }
