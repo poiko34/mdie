@@ -1,0 +1,20 @@
+# Build artifacts
+/build/
+*.o
+
+# Binary
+/mdie
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+*.exe
+*~
