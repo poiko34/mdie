@@ -169,6 +169,7 @@ Characteristics: 0x0102
 Optional Header: PE32
 Linker version:  2.47
 Entry Point:     0x00001460
+EP File Offset:  0x00000A60
 Image Base:      0x0000000000400000
 Section Align:   0x00001000
 File Align:      0x00000200

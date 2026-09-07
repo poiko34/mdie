@@ -14,6 +14,8 @@ SRC = \
 
 OBJ = $(SRC:src/%.c=build/%.o)
 
+TEST_TARGET = test/test_rva_to_offset
+
 $(TARGET): $(OBJ)
 	$(CC) $(OBJ) -o $@ -lm
 
@@ -21,7 +23,13 @@ build/%.o: src/%.c
 	@mkdir -p build
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -rf build $(TARGET)
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
 
-.PHONY: clean
+$(TEST_TARGET): test/test_rva_to_offset.c src/utils.c
+	$(CC) $(CFLAGS) test/test_rva_to_offset.c src/utils.c -o $@ -lm
+
+clean:
+	rm -rf build $(TARGET) $(TEST_TARGET)
+
+.PHONY: clean test

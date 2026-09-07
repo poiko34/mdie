@@ -4,6 +4,7 @@
 
 # Binary
 /mdie
+/test/test_rva_to_offset
 
 # IDE
 .vscode/

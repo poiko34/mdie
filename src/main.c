@@ -106,7 +106,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    print_pe_info(&dos, &file_header, &optional);
+    print_pe_info(
+        &dos,
+        &file_header,
+        &optional,
+        sections,
+        sections_count
+    );
     print_sections(file, sections, sections_count);
 
     /* Print entropy graph only if -g / --graph flag is explicitly requested */

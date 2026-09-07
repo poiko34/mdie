@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdint.h>
 
 #include "pe_utils.h"
 #include "pe_defs.h"
@@ -86,4 +87,47 @@ int calculate_entropy(
     *entropy = result;
 
     return 1;
+}
+
+int rva_to_offset(
+    const PE_SECTION_INFO *sections,
+    size_t count,
+    uint32_t rva,
+    uint32_t *offset
+)
+{
+    for (size_t i = 0; i < count; i++) {
+        const PE_SECTION_INFO *section = &sections[i];
+
+        uint64_t virtual_start = section->virtual_address;
+        uint64_t virtual_end = virtual_start + section->virtual_size;
+
+        if (rva < virtual_start || rva >= virtual_end) {
+            continue;
+        }
+
+        /* RVA belongs to this section's virtual range, but that does not
+         * imply a corresponding byte exists in the file: raw data may be
+         * absent (e.g. .bss) or shorter than the virtual range. */
+        if (section->size_of_raw_data == 0) {
+            return 0;
+        }
+
+        uint32_t delta = rva - section->virtual_address;
+
+        if (delta >= section->size_of_raw_data) {
+            return 0;
+        }
+
+        uint64_t file_offset = (uint64_t)section->pointer_to_raw_data + delta;
+
+        if (file_offset > UINT32_MAX) {
+            return 0;
+        }
+
+        *offset = (uint32_t)file_offset;
+        return 1;
+    }
+
+    return 0;
 }

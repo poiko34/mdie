@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "pe.h"
+
 int skip_bytes(FILE *file, size_t n);
 
 void get_section_perms(
@@ -16,6 +18,13 @@ int calculate_entropy(
     uint32_t offset,
     uint32_t size,
     double *entropy
+);
+
+int rva_to_offset(
+    const PE_SECTION_INFO *sections,
+    size_t count,
+    uint32_t rva,
+    uint32_t *offset
 );
 
 #endif

@@ -71,7 +71,9 @@ void print_sections(
 void print_pe_info(
     const PE_DOS_INFO *dos,
     const PE_FILE_HEADER *file_header,
-    const PE_OPTIONAL_INFO *optional
+    const PE_OPTIONAL_INFO *optional,
+    const PE_SECTION_INFO *sections,
+    size_t count
 )
 {
     printf("e_magic:         0x%04X\n", dos->e_magic);
@@ -103,6 +105,18 @@ void print_pe_info(
         "Entry Point:     0x%08" PRIX32 "\n",
         optional->address_of_entry_point
     );
+
+    uint32_t ep_offset;
+
+    if (rva_to_offset(
+            sections,
+            count,
+            optional->address_of_entry_point,
+            &ep_offset)) {
+        printf("EP File Offset:  0x%08" PRIX32 "\n", ep_offset);
+    } else {
+        printf("EP File Offset:  N/A\n");
+    }
 
     printf(
         "Image Base:      0x%016" PRIX64 "\n",
