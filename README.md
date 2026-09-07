@@ -55,6 +55,41 @@ To remove build artifacts:
 ```bash
 make clean
 ```
+## Test
+
+The `test/` directory contains a minimal Windows PE32 executable used to test `mdie`.
+
+Build the test executable:
+
+```bash
+cd test
+make
+```
+
+This produces:
+
+```text
+test32.exe
+```
+
+Run `mdie` against it from the project root:
+
+```bash
+./mdie test/test32.exe
+```
+
+The test executable is built with the MinGW 32-bit cross-compiler:
+
+```text
+i686-w64-mingw32-gcc
+```
+
+Clean the test build:
+
+```bash
+cd test
+make clean
+```
 
 ## Usage
 
@@ -109,6 +144,7 @@ mdie/
 │   ├── sections.c
 │   └── utils.c
 ├── test/
+│   ├── Makefile
 │   └── test32exe.c
 ├── LICENSE
 ├── Makefile
