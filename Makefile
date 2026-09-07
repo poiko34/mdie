@@ -9,7 +9,8 @@ SRC = \
 	src/pe.c \
 	src/sections.c \
 	src/utils.c \
-	src/print.c
+	src/print.c \
+	src/graph.c
 
 OBJ = $(SRC:src/%.c=build/%.o)
 
