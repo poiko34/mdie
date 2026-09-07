@@ -6,6 +6,9 @@
 
 int skip_bytes(FILE *file, size_t n);
 
-void get_section_perms(uint32_t characteristics, char *perm_str);
+void get_section_perms(
+    uint32_t characteristics,
+    char *perm_str
+);
 
 #endif

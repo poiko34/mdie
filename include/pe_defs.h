@@ -1,14 +1,18 @@
 #ifndef MDIE_PE_DEFS_H
 #define MDIE_PE_DEFS_H
 
-#define E_MAGIC              0x5A4D
-#define IMAGE_NT_SIGNATURE   0x00004550
+/* DOS / PE signatures */
+#define E_MAGIC            0x5A4D
+#define IMAGE_NT_SIGNATURE 0x00004550
 
-#define E_LFANEW_OFFSET      0x3C
+/* DOS header offsets */
+#define E_LFANEW_OFFSET    0x3C
 
-#define PE32                 0x10B
-#define PE32P                0x20B
+/* Optional Header magic */
+#define PE32               0x10B
+#define PE32P              0x20B
 
+/* Section characteristics */
 #define IMAGE_SCN_CNT_CODE               0x00000020
 #define IMAGE_SCN_CNT_INITIALIZED_DATA   0x00000040
 #define IMAGE_SCN_CNT_UNINITIALIZED_DATA 0x00000080

@@ -12,7 +12,6 @@ int main(int argc, char **argv)
     }
 
     FILE *file = fopen(argv[1], "rb");
-
     if (!file) {
         perror(argv[1]);
         return 1;
@@ -21,6 +20,8 @@ int main(int argc, char **argv)
     PE_DOS_INFO dos;
     PE_FILE_HEADER file_header;
     PE_OPTIONAL_INFO optional;
+    PE_SECTION_INFO *sections;
+
     long optional_header_offset;
     size_t sections_count;
 
@@ -38,7 +39,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    PE_SECTION_INFO *sections = read_sections(
+    sections = read_sections(
         file,
         &file_header,
         optional_header_offset,
@@ -51,7 +52,6 @@ int main(int argc, char **argv)
     }
 
     print_pe_info(&dos, &file_header, &optional);
-
     print_sections(sections, sections_count);
 
     free(sections);

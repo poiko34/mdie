@@ -1,15 +1,17 @@
 #ifndef MDIE_PE_H
 #define MDIE_PE_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stddef.h>
 
+/* DOS Header */
 typedef struct {
     uint16_t e_magic;
-    int32_t e_lfanew;
+    int32_t  e_lfanew;
 } PE_DOS_INFO;
 
+/* COFF/File Header */
 typedef struct {
     uint16_t machine;
     uint16_t number_of_sections;
@@ -20,6 +22,7 @@ typedef struct {
     uint16_t characteristics;
 } PE_FILE_HEADER;
 
+/* Optional Header */
 typedef struct {
     uint16_t magic;
     uint8_t  major_linker_version;
@@ -46,6 +49,7 @@ typedef struct {
     uint32_t number_of_rva_and_sizes;
 } PE_OPTIONAL_INFO;
 
+/* Section Header */
 typedef struct {
     char     name[8];
     uint32_t virtual_size;
@@ -55,13 +59,11 @@ typedef struct {
     uint32_t characteristics;
 } PE_SECTION_INFO;
 
-
 /* PE parsing */
-
 int read_nt_header(
     FILE *file,
     PE_FILE_HEADER *file_header,
-    PE_DOS_INFO* dos,
+    PE_DOS_INFO *dos,
     long *optional_header_offset
 );
 
