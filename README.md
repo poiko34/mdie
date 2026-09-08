@@ -46,6 +46,12 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Optional display with `-d, --directories`
   * Handles truncated data directory tables
 
+* Imports / IAT (`-i, --import`)
+  * DLL and function names, hints and ordinal imports
+  * IAT slot RVA, file offset and stored value
+  * PE32 and PE32+, with `FirstThunk` fallback
+  * Bound IAT values remain distinct from lookup-table names
+
 * Section table
   * Section name
   * RVA
@@ -64,7 +70,8 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Positional input file
   * `-f, --file`
   * `-d, --directories`
-  * `-g, --graph`
+  * `-i, --import`
+* `-g, --graph`
   * `-v, --version`
   * `-h, --help`
 
@@ -164,6 +171,31 @@ Show the PE data directory table:
 
 Data directories are hidden by default to keep the normal output compact.
 
+Show ordinary imports and their Import Address Table (IAT) slots:
+
+```bash
+./mdie -i app.exe
+./mdie --import app.exe
+./mdie -i -d -g app.exe
+```
+
+Imports are grouped by DLL. Each row contains the slot's RVA, file offset,
+stored IAT value, hint (or `#ordinal`) and function name. Names come from the
+Import Lookup Table (`OriginalFirstThunk`); `FirstThunk` is used when that
+lookup table is absent. Stored IAT values are file contents, not addresses
+resolved in a running process. For bound imports without a lookup table,
+names are reported as unavailable rather than interpreting bound addresses as RVAs.
+
+This mode parses the ordinary Import Directory (index 1), following each
+DLL's `FirstThunk` to its IAT slots. It does not require a separate IAT Data
+Directory (index 12), load DLLs, resolve runtime addresses or enumerate delay imports.
+Malformed import data produces warnings and exit code `2`; partial rows may
+still be shown. Analysis is capped at 4096 DLL descriptors, 65536 entries,
+256-byte DLL names and 1024-byte function names; reaching a limit is reported.
+Strings are sanitized for terminal output.
+
+Format reference: [Microsoft PE format — imports](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#import-directory-table).
+
 Show the entropy map:
 
 ```bash
@@ -258,15 +290,17 @@ If the declared number of directories exceeds the space declared in the Optional
 
 With `-g` / `--graph`, `mdie` additionally displays a color entropy map.
 
-Entropy is calculated over fixed 4096-byte windows of section raw data. Terminal width only controls grouping: when several windows share a cell, its color represents their mean entropy. A `~` marks a cell containing an incomplete final window; a `?` marks an unreadable range. Incomplete windows are not presented as full-window entropy estimates. The section table still reports entropy over all raw bytes.
+Each section gets a full-width bar from 0% to 100% of its raw bytes, with its raw size and whole-section entropy (`H/8`) alongside. Bar lengths are normalized per section; they do not compare section sizes.
 
-The color scale uses entropy anchors at 0, 2, 4, 6, 7 and 8 bits per byte. High entropy alone is not a determination that a file is packed or malicious.
+Local entropy is measured in fixed 1024-byte windows, including the shorter final window. Display cells use the byte-overlap-weighted mean of these window estimates. Small sections stretch their measured values across the bar; they are never divided into tiny samples just to fill the terminal. Resizing changes display grouping, not the underlying analysis windows. The whole-section value can differ from local window values.
+
+Blue means low entropy; green/yellow intermediate; red high. Without a terminal, with `NO_COLOR` set, or with `TERM=dumb`, a density ramp (`.:-=+*#%@`) replaces ANSI colors. `*` next to the numeric value marks a section shorter than 1 KiB: its estimate has less evidence and is limited by sample size. `?` marks unreadable data. Empty raw sections are labeled explicitly. High entropy alone does not determine whether a file is packed or malicious.
 
 ## Validation and exit status
 
 * `0`: analysis completed without the implemented validation warnings.
 * `1`: input/usage error, unreadable or truncated required headers, or allocation failure.
-* `2`: report produced, but a declared directory count, raw section range, header size or entry point failed validation.
+* `2`: report produced, but a declared directory count, raw section range, header size, entry point or requested import analysis failed validation.
 
 Raw section ranges are checked against the actual file size. Entry-point offsets are checked against EOF and can resolve into headers. A zero entry-point RVA is displayed as having no entry-point file offset. Non-printable section-name bytes are replaced with `?` in both output modes.
 
@@ -278,6 +312,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 .
 ├── include/
 │   ├── defs.h
+│   ├── imports.h
 │   ├── graph.h
 │   ├── pe_defs.h
 │   ├── pe.h
@@ -285,6 +320,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 │   └── print.h
 │
 ├── src/
+│   ├── imports.c
 │   ├── graph.c
 │   ├── main.c
 │   ├── pe.c
@@ -297,7 +333,8 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 │   ├── test32exe.c
 │   ├── test_data_directories.c
 │   ├── test_rva_to_offset.c
-│   └── test_cli.py
+│   ├── test_cli.py
+│   └── test_imports.py
 │
 ├── LICENSE
 ├── Makefile
@@ -311,12 +348,14 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 * `src/sections.c` — section table parsing
 * `src/print.c` — human-readable PE information
 * `src/utils.c` — shared PE utility functions
+* `src/imports.c` — bounded import/IAT parsing with visitor callbacks
 * `src/graph.c` — entropy map visualization
 * `src/main.c` — CLI argument handling and program flow
 * `test/test32exe.c` — source for the test PE32 executable
 * `test/test_rva_to_offset.c` — unit tests for RVA-to-file-offset conversion
 * `test/test_data_directories.c` — unit tests for Data Directory parsing
 * `test/test_cli.py` — generated PE32/PE32+ fixtures and CLI regression tests
+* `test/test_imports.py` — import/IAT regression tests
 
 ## Design
 

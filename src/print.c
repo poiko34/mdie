@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "print.h"
+#include "imports.h"
 #include "pe_defs.h"
 #include "pe_utils.h"
 
@@ -215,4 +216,35 @@ void print_data_directories(
             printf("%-24s N/A\n", names[i]);
         }
     }
+}
+
+static void print_import_dll(const char *name, int fallback, int bound)
+{
+    printf("\n%s%s%s\n", name, fallback ? " [FirstThunk fallback]" : "",
+           bound ? " [bound]" : "");
+    printf("  IAT RVA     File offset  Stored IAT value    Hint/Ord  Function\n");
+}
+
+static void print_import_entry(const PE_IMPORT_ENTRY *entry)
+{
+    printf("  0x%08" PRIX32 "  0x%08" PRIX32 "   0x%016" PRIX64 "  ",
+           entry->iat_rva, entry->file_offset, entry->value);
+    if (entry->bound_without_names) printf("       -  <bound address; name unavailable>\n");
+    else if (entry->by_ordinal)
+        printf("#%-7u  <ordinal import>\n", (unsigned)entry->hint_or_ordinal);
+    else printf("%-8u  %s\n", (unsigned)entry->hint_or_ordinal, entry->name);
+}
+
+int print_imports(FILE *file, const PE_OPTIONAL_INFO *optional,
+                  const PE_SECTION_INFO *sections, size_t count,
+                  uint64_t file_size, const PE_DATA_DIRECTORY *directory)
+{
+    printf("\nImports / IAT (file contents)\n");
+    if (!directory->virtual_address && !directory->size) {
+        printf("  No ordinary imports.\n");
+        return 1;
+    }
+    printf("Names: lookup table; stored values: IAT on disk.\n");
+    PE_IMPORT_VISITOR visitor = {print_import_dll, print_import_entry};
+    return visit_imports(file, optional, sections, count, file_size, directory, &visitor);
 }

@@ -16,6 +16,7 @@ static void print_help(const char *prog_name)
     printf("Options:\n");
     printf("  -f, --file <path>   Path to PE file to analyze\n");
     printf("  -d, --directories   Show PE data directories\n");
+    printf("  -i, --import        Show imports and IAT slots\n");
     printf("  -g, --graph         Show entropy graph map\n");
     printf("  -v, --version       Print version\n");
     printf("  -h, --help          Print this help message\n");
@@ -26,10 +27,12 @@ int main(int argc, char **argv)
     char *filepath = NULL;
     int directories_mode = 0;
     int graph_mode = 0;
+    int imports_mode = 0;
 
     static struct option const long_options[] = {
         {"file",        required_argument, NULL, 'f'},
         {"directories", no_argument,       NULL, 'd'},
+        {"import",      no_argument,       NULL, 'i'},
         {"graph",       no_argument,       NULL, 'g'},
         {"version",     no_argument,       NULL, 'v'},
         {"help",        no_argument,       NULL, 'h'},
@@ -37,13 +40,16 @@ int main(int argc, char **argv)
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:dgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:digvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'f':
                 filepath = optarg;
                 break;
             case 'd':
                 directories_mode = 1;
+                break;
+            case 'i':
+                imports_mode = 1;
                 break;
             case 'g':
                 graph_mode = 1;
@@ -93,11 +99,11 @@ int main(int argc, char **argv)
     PE_FILE_HEADER file_header;
     PE_OPTIONAL_INFO optional;
     PE_SECTION_INFO *sections;
-    PE_DATA_DIRECTORY directories[PE_MAX_DATA_DIRECTORIES];
+    PE_DATA_DIRECTORY directories[PE_MAX_DATA_DIRECTORIES] = {0};
 
     long optional_header_offset;
     size_t sections_count;
-    size_t directories_count;
+    size_t directories_count = 0;
 
     if (!read_nt_header(
             file,
@@ -134,7 +140,7 @@ int main(int argc, char **argv)
         );
     }
 
-    if (directories_mode) {
+    if (directories_mode || imports_mode) {
         directories_count = read_data_directories(
             file,
             &optional,
@@ -189,6 +195,17 @@ int main(int argc, char **argv)
 
     if (directories_mode) {
         print_data_directories(directories, directories_count);
+    }
+
+    if (imports_mode) {
+        size_t expected = optional.number_of_rva_and_sizes;
+        if (expected > available_entries) expected = available_entries;
+        if (expected > PE_MAX_DATA_DIRECTORIES) expected = PE_MAX_DATA_DIRECTORIES;
+        if (directories_count < expected) {
+            fprintf(stderr, "Warning: imports: cannot read declared data directories.\n");
+            malformed = 1;
+        } else if (!print_imports(file, &optional, sections, sections_count,
+                                  file_size, &directories[1])) malformed = 1;
     }
 
     print_sections(file, sections, sections_count);

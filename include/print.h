@@ -25,4 +25,8 @@ void print_data_directories(
     size_t count
 );
 
+int print_imports(FILE *file, const PE_OPTIONAL_INFO *optional,
+                  const PE_SECTION_INFO *sections, size_t count,
+                  uint64_t file_size, const PE_DATA_DIRECTORY *directory);
+
 #endif
