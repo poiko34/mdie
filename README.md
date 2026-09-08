@@ -52,6 +52,13 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * PE32 and PE32+, with `FirstThunk` fallback
   * Bound IAT values remain distinct from lookup-table names
 
+* Build-tool summary by default; details with `-c, --compiler`
+  * Separate compiler, toolchain, linker and runtime candidates
+  * Confidence labels and supporting evidence
+  * Rich Header structure/checksum validation
+  * Embedded GCC, Clang, MSVC, MinGW and linker marker rules
+  * CLR metadata and modern Go build-info recognition
+
 * Section table
   * Section name
   * RVA
@@ -196,6 +203,47 @@ Strings are sanitized for terminal output.
 
 Format reference: [Microsoft PE format — imports](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#import-directory-table).
 
+Normal output includes three compact lines: `Compiler`, `Linker` and `Runtime`.
+Candidates retain `likely` / `possible` labels; ambiguous results remain unknown.
+Use `-c` / `--compiler` to replace that summary with the detailed report and evidence:
+
+
+```bash
+./mdie -c app.exe
+./mdie --compiler app.exe
+./mdie -c -i -d -g app.exe
+```
+
+This is an initial heuristic detector, not a compiler-identification guarantee.
+The detailed report's `low` / `medium` / `high` labels describe evidence strength, not calibrated
+probabilities. Conflicting producer markers are reported as mixed evidence.
+Exact toolchain versions are not inferred from the Optional Header linker
+version. The Go inline build-info version is displayed when decoded.
+
+| Evidence | Interpretation and limits |
+| --- | --- |
+| GCC/Clang/MSVC producer text in section raw data | Compiler candidate; text may come from a dependency or arbitrary data. |
+| MinGW runtime/symbol text + GCC/Clang marker | MinGW-compatible combination; exact LLVM-MinGW distribution remains unconfirmed. |
+| `llvm-mingw` text | Low-confidence distribution hint only. |
+| Rich/DanS with valid record layout and checksum | Microsoft-compatible build artifacts and LINK-compatible candidate; does not identify the compiler. Product IDs are not mapped in this version. |
+| LLD/GNU ld identifier text | Low-confidence linker candidate. Many PE linkers leave no such identifier; `unknown` is expected. The LLD `.comment` convention is primarily an ELF convention, not a guaranteed PE artifact. |
+| CLR header + BSJB metadata root/version | .NET/CLR metadata; does not distinguish C#, VB.NET or other languages and does not validate all metadata streams. |
+| Aligned Go build-info header with inline `go1.*` version | Go build-info evidence. Legacy pointer layouts are a low-confidence hint; devel versions are not decoded. |
+
+Detection runs by default and scans at most 16 MiB of section raw data in file-section order.
+It excludes overlays and does not fetch PDBs or parse DWARF/CodeView records;
+producer strings are matched as embedded artifacts. Rich inspection is limited
+to DOS areas up to 64 KiB and at most 32 Rich-marker candidates. A scan limit,
+unreadable range or invalid declared CLR metadata is reported as incomplete
+and gives exit status `2`. An invalid Rich marker is ignored and listed as evidence.
+Rust and Delphi do not yet have dedicated detection rules. Stripped, packed,
+obfuscated or mixed-toolchain files may remain unknown or ambiguous.
+
+References: [Microsoft metadata](https://learn.microsoft.com/en-us/dotnet/standard/metadata-and-self-describing-components),
+[Go build-info implementation](https://go.dev/src/debug/buildinfo/buildinfo.go),
+[LIEF Rich Header reference](https://lief.re/doc/stable/doxygen/classLIEF_1_1PE_1_1RichHeader.html),
+[LLVM linker documentation](https://lld.llvm.org/).
+
 Show the entropy map:
 
 ```bash
@@ -312,6 +360,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 .
 ├── include/
 │   ├── defs.h
+│   ├── compiler.h
 │   ├── imports.h
 │   ├── graph.h
 │   ├── pe_defs.h
@@ -320,6 +369,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 │   └── print.h
 │
 ├── src/
+│   ├── compiler.c
 │   ├── imports.c
 │   ├── graph.c
 │   ├── main.c
@@ -334,7 +384,8 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 │   ├── test_data_directories.c
 │   ├── test_rva_to_offset.c
 │   ├── test_cli.py
-│   └── test_imports.py
+│   ├── test_imports.py
+│   └── test_compiler.py
 │
 ├── LICENSE
 ├── Makefile
@@ -348,6 +399,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 * `src/sections.c` — section table parsing
 * `src/print.c` — human-readable PE information
 * `src/utils.c` — shared PE utility functions
+* `src/compiler.c` — build-tool evidence collection and reporting
 * `src/imports.c` — bounded import/IAT parsing with visitor callbacks
 * `src/graph.c` — entropy map visualization
 * `src/main.c` — CLI argument handling and program flow
@@ -355,6 +407,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 * `test/test_rva_to_offset.c` — unit tests for RVA-to-file-offset conversion
 * `test/test_data_directories.c` — unit tests for Data Directory parsing
 * `test/test_cli.py` — generated PE32/PE32+ fixtures and CLI regression tests
+* `test/test_compiler.py` — build-tool positive, negative, mixed and bounded-scan tests
 * `test/test_imports.py` — import/IAT regression tests
 
 ## Design

@@ -9,6 +9,7 @@
 #include "print.h"
 #include "graph.h"
 #include "defs.h"
+#include "compiler.h"
 
 static void print_help(const char *prog_name)
 {
@@ -17,6 +18,7 @@ static void print_help(const char *prog_name)
     printf("  -f, --file <path>   Path to PE file to analyze\n");
     printf("  -d, --directories   Show PE data directories\n");
     printf("  -i, --import        Show imports and IAT slots\n");
+    printf("  -c, --compiler      Show detailed build-tool evidence\n");
     printf("  -g, --graph         Show entropy graph map\n");
     printf("  -v, --version       Print version\n");
     printf("  -h, --help          Print this help message\n");
@@ -28,11 +30,13 @@ int main(int argc, char **argv)
     int directories_mode = 0;
     int graph_mode = 0;
     int imports_mode = 0;
+    int compiler_mode = 0;
 
     static struct option const long_options[] = {
         {"file",        required_argument, NULL, 'f'},
         {"directories", no_argument,       NULL, 'd'},
         {"import",      no_argument,       NULL, 'i'},
+        {"compiler",    no_argument,       NULL, 'c'},
         {"graph",       no_argument,       NULL, 'g'},
         {"version",     no_argument,       NULL, 'v'},
         {"help",        no_argument,       NULL, 'h'},
@@ -40,7 +44,7 @@ int main(int argc, char **argv)
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:digvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:dicgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'f':
                 filepath = optarg;
@@ -50,6 +54,9 @@ int main(int argc, char **argv)
                 break;
             case 'i':
                 imports_mode = 1;
+                break;
+            case 'c':
+                compiler_mode = 1;
                 break;
             case 'g':
                 graph_mode = 1;
@@ -140,7 +147,8 @@ int main(int argc, char **argv)
         );
     }
 
-    if (directories_mode || imports_mode) {
+    /* Directories also feed the default build-tool summary. */
+    {
         directories_count = read_data_directories(
             file,
             &optional,
@@ -192,6 +200,25 @@ int main(int argc, char **argv)
         sections_count,
         file_size
     );
+
+    {
+        PE_BUILD_INFO build;
+        if (!detect_build_tools(file, &dos, &optional, sections, sections_count,
+                                file_size, directories, &build)) {
+            fprintf(stderr, "Warning: build-tool analysis is incomplete.\n");
+            malformed = 1;
+        }
+        size_t expected = optional.number_of_rva_and_sizes;
+        if (expected > available_entries) expected = available_entries;
+        if (expected > PE_MAX_DATA_DIRECTORIES) expected = PE_MAX_DATA_DIRECTORIES;
+        if (directories_count < expected) {
+            fprintf(stderr, "Warning: build-tool data directories are incomplete.\n");
+            build.incomplete = 1;
+            malformed = 1;
+        }
+        if (compiler_mode) print_build_tools(&build, &optional);
+        else print_build_summary(&build);
+    }
 
     if (directories_mode) {
         print_data_directories(directories, directories_count);
