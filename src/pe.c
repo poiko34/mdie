@@ -103,9 +103,9 @@ int read_optional_header(
     size_t min_optional_header_size;
 
     if (optional_magic == PE32) {
-        min_optional_header_size = 96;
+        min_optional_header_size = PE32_OPTIONAL_HEADER_MIN_SIZE;
     } else if (optional_magic == PE32P) {
-        min_optional_header_size = 112;
+        min_optional_header_size = PE32P_OPTIONAL_HEADER_MIN_SIZE;
     } else {
         fprintf(
             stderr,
@@ -244,4 +244,89 @@ int read_optional_header(
     }
 
     return 1;
+}
+
+size_t get_available_data_directories(
+    const PE_OPTIONAL_INFO *optional,
+    uint16_t size_of_optional_header
+)
+{
+    size_t standard_fields_size =
+        (optional->magic == PE32P)
+            ? PE32P_OPTIONAL_HEADER_MIN_SIZE
+            : PE32_OPTIONAL_HEADER_MIN_SIZE;
+
+    if (size_of_optional_header <= standard_fields_size) {
+        return 0;
+    }
+
+    size_t available_bytes =
+        (size_t)size_of_optional_header - standard_fields_size;
+
+    return available_bytes / 8;
+}
+
+size_t read_data_directories(
+    FILE *file,
+    const PE_OPTIONAL_INFO *optional,
+    long optional_header_offset,
+    uint16_t size_of_optional_header,
+    PE_DATA_DIRECTORY *directories
+)
+{
+    uint16_t standard_fields_size = (optional->magic == PE32P)
+        ? PE32P_OPTIONAL_HEADER_MIN_SIZE
+        : PE32_OPTIONAL_HEADER_MIN_SIZE;
+
+    if (size_of_optional_header <= standard_fields_size) {
+        return 0;
+    }
+
+    /* Do not assume NumberOfRvaAndSizes is 16: clamp it against both the
+     * space actually declared in SizeOfOptionalHeader and the number of
+     * directory kinds mdie knows how to label. */
+    size_t available_bytes =
+        (size_t)size_of_optional_header - standard_fields_size;
+    size_t available_entries = available_bytes / 8;
+
+    size_t count = optional->number_of_rva_and_sizes;
+
+    if (count > available_entries) {
+        count = available_entries;
+    }
+
+    if (count > PE_MAX_DATA_DIRECTORIES) {
+        count = PE_MAX_DATA_DIRECTORIES;
+    }
+
+    if (count == 0) {
+        return 0;
+    }
+
+    if (fseek(file,
+              optional_header_offset + (long)standard_fields_size,
+              SEEK_SET) != 0) {
+        return 0;
+    }
+
+    size_t read_count = 0;
+
+    for (size_t i = 0; i < count; i++) {
+        uint32_t virtual_address;
+        uint32_t size;
+
+        if (fread(&virtual_address, sizeof(virtual_address), 1, file) != 1) {
+            break;
+        }
+
+        if (fread(&size, sizeof(size), 1, file) != 1) {
+            break;
+        }
+
+        directories[read_count].virtual_address = virtual_address;
+        directories[read_count].size = size;
+        read_count++;
+    }
+
+    return read_count;
 }
