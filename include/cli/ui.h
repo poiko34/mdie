@@ -7,4 +7,6 @@ size_t ui_width(void);
 void ui_heading(const char *title);
 void ui_text(const char *text, size_t limit);
 void ui_file(const char *path, uint64_t size);
+void format_section_name(const char name[8], char output[9]);
+void get_section_perms(uint32_t characteristics, char *perm_str);
 #endif

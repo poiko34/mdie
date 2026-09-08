@@ -1,8 +1,8 @@
 #include <inttypes.h>
 
-#include "pe.h"
-#include "pe_defs.h"
-#include "pe_utils.h"
+#include "pe/image.h"
+#include "pe/constants.h"
+#include "pe/utils.h"
 
 int read_nt_header(
     FILE *file,

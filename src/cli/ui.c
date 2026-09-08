@@ -4,8 +4,8 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include "ui.h"
-#include "defs.h"
+#include "cli/ui.h"
+#include "cli/version.h"
 
 int ui_color(void)
 {

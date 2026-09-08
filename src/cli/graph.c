@@ -4,9 +4,10 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#include "graph.h"
-#include "ui.h"
-#include "pe_utils.h"
+#include "cli/graph.h"
+#include "cli/ui.h"
+#include "pe/utils.h"
+#include "analysis/entropy.h"
 
 #define ENTROPY_WINDOW_SIZE 1024
 #define ROW_PREFIX_WIDTH 27

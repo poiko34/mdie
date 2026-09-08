@@ -1,8 +1,8 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "pe.h"
-#include "pe_utils.h"
+#include "pe/image.h"
+#include "pe/utils.h"
 
 static void test_rva_at_section_start(void)
 {

@@ -1,11 +1,13 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#include "print.h"
-#include "ui.h"
-#include "imports.h"
-#include "pe_defs.h"
-#include "pe_utils.h"
+#include "cli/print.h"
+#include "cli/ui.h"
+#include "pe/imports.h"
+#include "pe/exports.h"
+#include "pe/constants.h"
+#include "pe/utils.h"
+#include "analysis/entropy.h"
 
 void print_sections(
     FILE *file,
@@ -342,4 +344,43 @@ int print_imports(FILE *file, const PE_OPTIONAL_INFO *optional,
     printf("Names: lookup table; stored values: IAT on disk.\n");
     PE_IMPORT_VISITOR visitor = {print_import_dll, print_import_entry};
     return visit_imports(file, optional, sections, count, file_size, directory, &visitor);
+}
+
+static void print_export_module(const char *name, uint32_t slots, uint32_t names)
+{
+    printf("Module: %s\n", name);
+    printf("EAT slots: %" PRIu32 " | Names: %" PRIu32 " (empty slots omitted)\n\n", slots, names);
+    if (ui_width() >= 100)
+        printf("Ordinal  EAT RVA     Target RVA  File offset  Name / forwarder\n");
+}
+static void print_export_entry(const PE_EXPORT_ENTRY *e)
+{
+    if (ui_width() >= 100) {
+        printf("%-8" PRIu32 " 0x%08" PRIX32 "  0x%08" PRIX32 "  ",
+               e->ordinal, e->eat_rva, e->target_rva);
+        if (e->has_file_offset) printf("0x%08" PRIX32 "   ", e->file_offset);
+        else printf("N/A          ");
+        printf("%s", e->name[0] ? e->name : "<ordinal only>");
+        if (e->is_forwarder) printf(" -> %s", e->forwarder);
+        putchar('\n');
+    } else {
+        printf("  #%" PRIu32 "  %s\n", e->ordinal, e->name[0] ? e->name : "<ordinal only>");
+        printf("    EAT:    0x%08" PRIX32 "\n", e->eat_rva);
+        printf("    Target: 0x%08" PRIX32 "\n", e->target_rva);
+        if (e->has_file_offset) printf("    File:   0x%08" PRIX32 "\n", e->file_offset);
+        else printf("    File:   N/A\n");
+        if (e->is_forwarder) printf("    Forwarder: %s\n", e->forwarder);
+    }
+}
+int print_exports(FILE *file, const PE_OPTIONAL_INFO *optional,
+                  const PE_SECTION_INFO *sections, size_t count,
+                  uint64_t file_size, const PE_DATA_DIRECTORY *directory)
+{
+    ui_heading("Exports / EAT");
+    if (!directory->virtual_address && !directory->size) {
+        printf("No exports.\n");
+        return 1;
+    }
+    PE_EXPORT_VISITOR visitor = {print_export_module, print_export_entry};
+    return visit_exports(file, optional, sections, count, file_size, directory, &visitor);
 }

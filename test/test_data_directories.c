@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "pe.h"
-#include "pe_defs.h"
+#include "pe/image.h"
+#include "pe/constants.h"
 
 static int tests_run = 0;
 static int tests_failed = 0;

@@ -1,9 +1,9 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <string.h>
-#include "imports.h"
-#include "pe_defs.h"
-#include "pe_utils.h"
+#include "pe/imports.h"
+#include "pe/constants.h"
+#include "pe/utils.h"
 
 #define MAX_IMPORT_DLLS 4096
 #define MAX_IMPORT_ENTRIES 65536

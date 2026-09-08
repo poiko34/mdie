@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "pe.h"
+#include "pe/image.h"
 
 void print_sections(
     FILE *file,
@@ -32,6 +32,10 @@ void print_data_directories(
 );
 
 int print_imports(FILE *file, const PE_OPTIONAL_INFO *optional,
+                  const PE_SECTION_INFO *sections, size_t count,
+                  uint64_t file_size, const PE_DATA_DIRECTORY *directory);
+
+int print_exports(FILE *file, const PE_OPTIONAL_INFO *optional,
                   const PE_SECTION_INFO *sections, size_t count,
                   uint64_t file_size, const PE_DATA_DIRECTORY *directory);
 

@@ -1,6 +1,6 @@
 #ifndef MDIE_IMPORTS_H
 #define MDIE_IMPORTS_H
-#include "pe.h"
+#include "pe/image.h"
 
 typedef struct {
     uint32_t iat_rva;

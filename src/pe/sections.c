@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "pe.h"
-#include "pe_utils.h"
+#include "pe/image.h"
+#include "pe/utils.h"
 
 PE_SECTION_INFO *read_sections(
     FILE *file,

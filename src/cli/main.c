@@ -3,14 +3,15 @@
 #include <getopt.h>
 #include <inttypes.h>
 
-#include "pe.h"
-#include "pe_utils.h"
-#include "pe_defs.h"
-#include "print.h"
-#include "graph.h"
-#include "defs.h"
-#include "compiler.h"
-#include "ui.h"
+#include "pe/image.h"
+#include "pe/utils.h"
+#include "pe/constants.h"
+#include "cli/print.h"
+#include "cli/graph.h"
+#include "cli/version.h"
+#include "analysis/compiler.h"
+#include "cli/build_output.h"
+#include "cli/ui.h"
 
 static void print_help(const char *prog_name)
 {
@@ -20,6 +21,7 @@ static void print_help(const char *prog_name)
     printf("  -H, --headers       Show raw DOS, COFF and Optional Header fields\n");
     printf("  -f, --file <path>   Path to PE file to analyze\n");
     printf("  -d, --directories   Show PE data directories\n");
+    printf("  -e, --export        Show exports and EAT slots\n");
     printf("  -i, --import        Show imports and IAT slots\n");
     printf("  -c, --compiler      Show detailed build-tool evidence\n");
     printf("  -g, --graph         Show entropy graph map\n");
@@ -33,6 +35,7 @@ int main(int argc, char **argv)
     int directories_mode = 0;
     int graph_mode = 0;
     int imports_mode = 0;
+    int exports_mode = 0;
     int compiler_mode = 0;
     int headers_mode = 0;
 
@@ -40,6 +43,7 @@ int main(int argc, char **argv)
         {"headers",     no_argument,       NULL, 'H'},
         {"file",        required_argument, NULL, 'f'},
         {"directories", no_argument,       NULL, 'd'},
+        {"export",      no_argument,       NULL, 'e'},
         {"import",      no_argument,       NULL, 'i'},
         {"compiler",    no_argument,       NULL, 'c'},
         {"graph",       no_argument,       NULL, 'g'},
@@ -49,7 +53,7 @@ int main(int argc, char **argv)
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:Hdicgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:Hdiecgvh", long_options, NULL)) != -1) {
         switch (opt) {
             case 'H':
                 headers_mode = 1;
@@ -59,6 +63,9 @@ int main(int argc, char **argv)
                 break;
             case 'd':
                 directories_mode = 1;
+                break;
+            case 'e':
+                exports_mode = 1;
                 break;
             case 'i':
                 imports_mode = 1;
@@ -249,6 +256,14 @@ int main(int argc, char **argv)
                                   file_size, &directories[1])) malformed = 1;
     }
 
+
+    if (exports_mode) {
+        if (optional.number_of_rva_and_sizes && !directories_count) {
+            fprintf(stderr, "Warning: exports: Export Directory is unavailable.\n");
+            malformed = 1;
+        } else if (!print_exports(file, &optional, sections, sections_count,
+                                   file_size, &directories[0])) malformed = 1;
+    }
 
     /* Print entropy graph only if -g / --graph flag is explicitly requested */
     if (graph_mode) {

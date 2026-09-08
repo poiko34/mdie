@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "pe.h"
+#include "pe/image.h"
 
 void print_entropy_graph(
     FILE *file,

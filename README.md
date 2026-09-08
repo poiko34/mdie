@@ -59,6 +59,12 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Embedded GCC, Clang, MSVC, MinGW and linker marker rules
   * CLR metadata and modern Go build-info recognition
 
+* Exports / EAT (`-e, --export`)
+  * Named and ordinal-only exports, aliases and unused EAT slots
+  * Public ordinal, EAT slot RVA, target RVA and file offset
+  * Forwarder strings, including `DLL.#ordinal`
+  * PE32/PE32+ (EAT entries remain 32-bit RVAs)
+
 * Section table
   * Section name
   * RVA
@@ -77,7 +83,8 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Positional input file
   * `-f, --file`
   * `-d, --directories`
-  * `-H, --headers`
+  * `-e, --export`
+* `-H, --headers`
 * `-i, --import`
 * `-g, --graph`
   * `-v, --version`
@@ -178,6 +185,24 @@ Show the PE data directory table:
 ```
 
 Data directories are hidden by default to keep the normal output compact.
+
+Show exports and Export Address Table (EAT) slots:
+
+```bash
+./mdie -e library.dll
+./mdie --export library.dll
+./mdie -e -i -d -g library.dll
+```
+
+The public ordinal is `OrdinalBase + EAT index`. Name ordinals are unbiased
+indexes, not public ordinals. Multiple names for one slot are shown separately;
+zero-valued EAT holes are omitted. A target RVA inside the Export Directory is
+a forwarder string, bounded by that directory. The tool displays forwarders
+without loading the target DLL. Exported data without a file-backed byte has
+file offset `N/A`. Malformed tables produce warnings and exit code `2`.
+Limits: 65536 EAT slots and names, 1024 bytes per module/name/forwarder string.
+
+Reference: [Microsoft export tables](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-directory-table).
 
 Show ordinary imports and their Import Address Table (IAT) slots:
 
@@ -348,77 +373,25 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 
 ## Project structure
 
-```text
-.
-├── include/
-│   ├── defs.h
-│   ├── ui.h
-│   ├── compiler.h
-│   ├── imports.h
-│   ├── graph.h
-│   ├── pe_defs.h
-│   ├── pe.h
-│   ├── pe_utils.h
-│   └── print.h
-│
-├── src/
-│   ├── ui.c
-│   ├── compiler.c
-│   ├── imports.c
-│   ├── graph.c
-│   ├── main.c
-│   ├── pe.c
-│   ├── print.c
-│   ├── sections.c
-│   └── utils.c
-│
-├── test/
-│   ├── Makefile
-│   ├── test32exe.c
-│   ├── test_data_directories.c
-│   ├── test_rva_to_offset.c
-│   ├── test_cli.py
-│   ├── test_imports.py
-│   └── test_compiler.py
-│
-├── LICENSE
-├── Makefile
-└── README.md
-```
+| Directory | Responsibility |
+| --- | --- |
+| `src/pe/` | Header and section parsing, RVA/file utilities, import and export tables. |
+| `src/analysis/` | Entropy calculation and heuristic build-tool detection. |
+| `src/cli/` | Arguments, tables, build-tool presentation, terminal formatting and entropy map. |
+| `include/pe/` | PE models, constants and parser interfaces. |
+| `include/analysis/` | Entropy and build-tool analysis interfaces. |
+| `include/cli/` | CLI output interfaces and `version.h`. |
+| `test/` | C unit tests, generated PE regression fixtures and optional MinGW test build. |
 
-## Main components
+Parsing callbacks describe imports/exports without depending on terminal layout.
+Compiler detection produces `PE_BUILD_INFO`; `src/cli/build_output.c` renders it.
+`src/analysis/entropy.c` calculates entropy; `src/cli/graph.c` draws it.
+Shared includes use explicit paths such as `pe/image.h` and `analysis/compiler.h`.
 
-* `include/` — public headers and PE definitions
-* `src/pe.c` — PE/COFF, Optional Header, and Data Directory parsing
-* `src/sections.c` — section table parsing
-* `src/print.c` — human-readable PE information
-* `src/utils.c` — shared PE utility functions
-* `src/ui.c` — shared terminal headings, color policy and file banner
-* `src/compiler.c` — build-tool evidence collection and reporting
-* `src/imports.c` — bounded import/IAT parsing with visitor callbacks
-* `src/graph.c` — entropy map visualization
-* `src/main.c` — CLI argument handling and program flow
-* `test/test32exe.c` — source for the test PE32 executable
-* `test/test_rva_to_offset.c` — unit tests for RVA-to-file-offset conversion
-* `test/test_data_directories.c` — unit tests for Data Directory parsing
-* `test/test_cli.py` — generated PE32/PE32+ fixtures and CLI regression tests
-* `test/test_compiler.py` — build-tool positive, negative, mixed and bounded-scan tests
-* `test/test_imports.py` — import/IAT regression tests
-
-## Design
-
-`mdie` is intentionally split into a few small components:
-
-* `pe.c` — PE/COFF, Optional Header, and Data Directory parsing
-* `sections.c` — section table parsing
-* `print.c` — human-readable PE information
-* `utils.c` — shared PE utility functions
-* `graph.c` — entropy map visualization
-* `main.c` — CLI argument handling and program flow
-
-Parsing and presentation are kept separate so that additional analysis modes can be added without making the core parser dependent on output formatting.
-
-Data Directory parsing respects the declared `SizeOfOptionalHeader` and `NumberOfRvaAndSizes` values, preventing reads beyond the available Optional Header data.
+The Makefile preserves this hierarchy under `build/` and tracks header
+prerequisites through generated `.d` files. After migrating from the flat
+layout, run `make clean && make test`. The CLI flags and existing output
+remain the same, with the addition of `-e` / `--export`.
 
 ## Goals
 

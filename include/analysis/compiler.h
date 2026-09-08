@@ -1,6 +1,6 @@
 #ifndef MDIE_COMPILER_H
 #define MDIE_COMPILER_H
-#include "pe.h"
+#include "pe/image.h"
 
 typedef struct {
     int gcc, clang, msvc, mingw, llvm_mingw, lld, gnu_ld;
@@ -16,6 +16,4 @@ int detect_build_tools(FILE *file, const PE_DOS_INFO *dos,
                        const PE_SECTION_INFO *sections, size_t count,
                        uint64_t file_size, const PE_DATA_DIRECTORY *directories,
                        PE_BUILD_INFO *result);
-void print_build_summary(const PE_BUILD_INFO *info);
-void print_build_tools(const PE_BUILD_INFO *info, const PE_OPTIONAL_INFO *optional);
 #endif
