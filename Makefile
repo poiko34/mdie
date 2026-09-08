@@ -11,11 +11,13 @@ SRC = \
   src/cli/ui.c \
   src/cli/format.c \
   src/cli/build_output.c \
+  src/cli/debug_output.c \
   src/pe/headers.c \
   src/pe/sections.c \
   src/pe/utils.c \
   src/pe/imports.c \
   src/pe/exports.c \
+  src/pe/debug.c \
   src/analysis/compiler.c \
   src/analysis/entropy.c
 OBJ = $(SRC:src/%.c=build/%.o)
@@ -39,6 +41,7 @@ test: $(TARGET) $(TEST_TARGET) $(TEST_DATA_DIR_TARGET)
 	python3 test/test_imports.py ./$(TARGET)
 	python3 test/test_compiler.py ./$(TARGET)
 	python3 test/test_exports.py ./$(TARGET)
+	python3 test/test_debug.py ./$(TARGET)
 
 $(TEST_TARGET): test/test_rva_to_offset.c src/pe/utils.c $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(filter %.c,$^) -o $@ $(LDLIBS)

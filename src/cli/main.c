@@ -11,6 +11,7 @@
 #include "cli/version.h"
 #include "analysis/compiler.h"
 #include "cli/build_output.h"
+#include "cli/debug_output.h"
 #include "cli/ui.h"
 
 static void print_help(const char *prog_name)
@@ -21,6 +22,7 @@ static void print_help(const char *prog_name)
     printf("  -H, --headers       Show raw DOS, COFF and Optional Header fields\n");
     printf("  -f, --file <path>   Path to PE file to analyze\n");
     printf("  -d, --directories   Show PE data directories\n");
+    printf("      --debug         Show Debug Directory and CodeView PDB details\n");
     printf("  -e, --export        Show exports and EAT slots\n");
     printf("  -i, --import        Show imports and IAT slots\n");
     printf("  -c, --compiler      Show detailed build-tool evidence\n");
@@ -38,11 +40,14 @@ int main(int argc, char **argv)
     int exports_mode = 0;
     int compiler_mode = 0;
     int headers_mode = 0;
+    int debug_mode = 0;
+    enum { OPT_DEBUG = 256 };
 
     static struct option const long_options[] = {
         {"headers",     no_argument,       NULL, 'H'},
         {"file",        required_argument, NULL, 'f'},
         {"directories", no_argument,       NULL, 'd'},
+        {"debug",       no_argument,       NULL, OPT_DEBUG},
         {"export",      no_argument,       NULL, 'e'},
         {"import",      no_argument,       NULL, 'i'},
         {"compiler",    no_argument,       NULL, 'c'},
@@ -55,6 +60,9 @@ int main(int argc, char **argv)
     int opt;
     while ((opt = getopt_long(argc, argv, "f:Hdiecgvh", long_options, NULL)) != -1) {
         switch (opt) {
+            case OPT_DEBUG:
+                debug_mode = 1;
+                break;
             case 'H':
                 headers_mode = 1;
                 break;
@@ -263,6 +271,14 @@ int main(int argc, char **argv)
             malformed = 1;
         } else if (!print_exports(file, &optional, sections, sections_count,
                                    file_size, &directories[0])) malformed = 1;
+    }
+
+    if (debug_mode) {
+        if (optional.number_of_rva_and_sizes > 6 && directories_count <= 6) {
+            fprintf(stderr, "Warning: debug: declared Debug Directory is unavailable.\n");
+            malformed = 1;
+        } else if (!print_debug(file, &optional, sections, sections_count,
+                                file_size, &directories[6])) malformed = 1;
     }
 
     /* Print entropy graph only if -g / --graph flag is explicitly requested */

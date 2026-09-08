@@ -65,6 +65,12 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Forwarder strings, including `DLL.#ordinal`
   * PE32/PE32+ (EAT entries remain 32-bit RVAs)
 
+* Debug Directory / CodeView (`--debug`)
+  * Debug entry type names and numeric values for PE32 and PE32+
+  * RSDS: GUID, age and PDB path
+  * NB10: timestamp, age and PDB path
+  * File-bound checks, overlay payloads and bounded PDB strings
+
 * Section table
   * Section name
   * RVA
@@ -83,6 +89,7 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Positional input file
   * `-f, --file`
   * `-d, --directories`
+  * `--debug`
   * `-e, --export`
 * `-H, --headers`
 * `-i, --import`
@@ -204,6 +211,45 @@ Limits: 65536 EAT slots and names, 1024 bytes per module/name/forwarder string.
 
 Reference: [Microsoft export tables](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#export-directory-table).
 
+Show Debug Directory entries and CodeView PDB references:
+
+```bash
+./mdie --debug app.exe
+./mdie --debug -H -i -e -d app.exe
+```
+
+`--debug` parses Data Directory index 6 as an array of 28-byte entries for
+both PE32 and PE32+. Each entry shows its type name and numeric value,
+payload size, RVA and file offset. CodeView entries (type 2) additionally show:
+
+* `RSDS`: GUID in canonical GUID byte order, decimal age and PDB path.
+* `NB10`: the CodeView timestamp in hexadecimal, decimal age and PDB path.
+  This timestamp comes from the NB10 payload, not the Debug Directory entry.
+
+The directory is resolved through RVAs, including header storage. Payloads
+are read using `PointerToRawData`, a file offset, so PDB references in overlays
+are supported even when `AddressOfRawData` is zero. The latter is displayed as
+metadata; it is not used as a fallback or cross-checked against the file pointer.
+Nonempty payloads require a nonzero file pointer and a range contained in the file.
+
+PDB paths must have a NUL terminator inside `SizeOfData`; empty paths are shown
+as `<empty>`. Non-printable and non-ASCII path bytes are displayed as `?`.
+Limits are 4096 directory entries and 4096 path bytes excluding the terminator.
+Invalid ranges, truncated records/headers, missing string terminators and exceeded
+limits produce warnings and exit status `2`. Complete entries before a truncated
+record remain visible; an invalid payload does not prevent later entries from
+being reported. A directory size not divisible by 28 is reported as malformed,
+while its complete entries are still inspected.
+
+Unknown debug types retain their numeric value. Unsupported CodeView signatures
+are shown in hexadecimal without decoding their contents; they alone do not
+cause validation failure. Other debug payload formats and external PDB files
+are not parsed or fetched. Without `--debug`, this additional analysis is disabled.
+
+References: [Microsoft Debug Directory](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#debug-directory-image-only),
+[Crashpad RSDS layout](https://crashpad.chromium.org/doxygen/structcrashpad_1_1CodeViewRecordPDB70.html),
+[Crashpad NB10 layout](https://crashpad.chromium.org/doxygen/structcrashpad_1_1CodeViewRecordPDB20.html).
+
 Show ordinary imports and their Import Address Table (IAT) slots:
 
 ```bash
@@ -257,7 +303,7 @@ version. The Go inline build-info version is displayed when decoded.
 | Aligned Go build-info header with inline `go1.*` version | Go build-info evidence. Legacy pointer layouts are a low-confidence hint; devel versions are not decoded. |
 
 Detection runs by default and scans at most 16 MiB of section raw data in file-section order.
-It excludes overlays and does not fetch PDBs or parse DWARF/CodeView records;
+Build-tool detection excludes overlays and does not fetch PDBs or parse DWARF/CodeView records;
 producer strings are matched as embedded artifacts. Rich inspection is limited
 to DOS areas up to 64 KiB and at most 32 Rich-marker candidates. A scan limit,
 unreadable range or invalid declared CLR metadata is reported as incomplete
@@ -365,7 +411,7 @@ Blue means low entropy; green/yellow intermediate; red high. Without a terminal,
 
 * `0`: analysis completed without the implemented validation warnings.
 * `1`: input/usage error, unreadable or truncated required headers, or allocation failure.
-* `2`: report produced, but a declared directory count, raw section range, header size, entry point or requested import analysis failed validation.
+* `2`: report produced, but a declared directory count, raw section range, header size, entry point or requested import/export/debug analysis failed validation, or build-tool analysis was incomplete.
 
 Raw section ranges are checked against the actual file size. Entry-point offsets are checked against EOF and can resolve into headers. A zero entry-point RVA is displayed as having no entry-point file offset. Non-printable section-name bytes are replaced with `?` in both output modes.
 
@@ -375,15 +421,17 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 
 | Directory | Responsibility |
 | --- | --- |
-| `src/pe/` | Header and section parsing, RVA/file utilities, import and export tables. |
+| `src/pe/` | Header and section parsing, RVA/file utilities, import/export tables, Debug Directory and CodeView. |
 | `src/analysis/` | Entropy calculation and heuristic build-tool detection. |
-| `src/cli/` | Arguments, tables, build-tool presentation, terminal formatting and entropy map. |
+| `src/cli/` | Arguments, tables, build-tool and debug presentation, terminal formatting and entropy map. |
 | `include/pe/` | PE models, constants and parser interfaces. |
 | `include/analysis/` | Entropy and build-tool analysis interfaces. |
 | `include/cli/` | CLI output interfaces and `version.h`. |
 | `test/` | C unit tests, generated PE regression fixtures and optional MinGW test build. |
 
-Parsing callbacks describe imports/exports without depending on terminal layout.
+Parsing callbacks describe imports/exports/debug entries without depending on terminal layout.
+`src/pe/debug.c` decodes Debug Directory and CodeView records;
+`src/cli/debug_output.c` renders their types, identifiers and sanitized PDB paths.
 Compiler detection produces `PE_BUILD_INFO`; `src/cli/build_output.c` renders it.
 `src/analysis/entropy.c` calculates entropy; `src/cli/graph.c` draws it.
 Shared includes use explicit paths such as `pe/image.h` and `analysis/compiler.h`.
