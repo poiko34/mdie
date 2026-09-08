@@ -129,20 +129,49 @@ class ParserTests(unittest.TestCase):
             self.assertEqual(p.returncode, 2)
             self.assertIn(b'Data Directory', p.stderr)
 
-    def test_fixed_entropy_windows(self):
-        data = fixture(size=8192)
-        # A zero-filled window followed by a uniformly distributed window.
-        data[512:4608] = bytes(4096)
-        for width in (40, 120):
-            p = self.run_pe(data, '-g', width=width)
-            graph_row = [row for row in p.stdout.splitlines() if row.startswith(b'.text')][-1]
-            self.assertEqual(graph_row.count(b'\x1b[38;2;'), 2)
-            self.assertIn(b'\x1b[38;2;0;0;139m', graph_row)
-            self.assertIn(b'\x1b[38;2;255;0;0m', graph_row)
+    def graph_output(self, data, width=80):
+        p = self.run_pe(data, '-g', width=width)
+        return p.stdout.decode().split('Entropy map\r\n', 1)[1]
 
-    def test_incomplete_window(self):
+    def test_full_width_entropy_bars(self):
+        data = fixture(size=8192)
+        data[512:4608] = bytes(4096)
+        for width in (40, 80, 120):
+            output = self.graph_output(data, width)
+            rows = output.splitlines()
+            name_index = next(i for i, row in enumerate(rows) if row.startswith('.text'))
+            row = rows[name_index + 1] if width < 64 else rows[name_index]
+            plain = re.sub(r'\x1b\[[0-9;]*m', '', row)
+            bar = plain[2:] if width < 64 else plain[27:]
+            self.assertEqual(len(plain), width - 1)
+            self.assertNotIn('~', bar)
+            # Both halves retain their fixed-window low/high entropy values.
+            if '\x1b' in row:
+                self.assertIn('38;2;65;105;225m', row)
+                self.assertIn('38;2;240;75;85m', row)
+            else:
+                self.assertTrue(bar.startswith('.'))
+                self.assertTrue(bar.endswith('@'))
+            for line in rows:
+                self.assertLessEqual(len(re.sub(r'\x1b\[[0-9;]*m', '', line)), width)
+
+    def test_small_sections_and_tails(self):
+        for size in (1, 16, 512, 1025):
+            output = self.graph_output(fixture(size=size))
+            row = next(x for x in output.splitlines() if x.startswith('.text'))
+            plain = re.sub(r'\x1b\[[0-9;]*m', '', row)
+            self.assertEqual(len(plain), 79)
+            self.assertNotIn('~', plain)
+            self.assertNotIn('?', plain)
+            self.assertEqual('*' in plain[:27], size < 1024)
+
+    def test_graph_redirect_and_errors(self):
         p = self.run_pe(fixture(), '-g')
-        self.assertIn(b'.text   ~', p.stdout)
+        self.assertNotIn(b'\x1b', p.stdout)
+        p = self.run_pe(fixture(raw=0x100000), '-g')
+        self.assertIn(b'????????', p.stdout)
+        p = self.run_pe(fixture(size=0, ep=0), '-g')
+        self.assertIn(b'(no raw data)', p.stdout)
 
     def test_extra_argument(self):
         p = self.run_pe(fixture(), 'unexpected.exe')
