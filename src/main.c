@@ -4,6 +4,7 @@
 #include <inttypes.h>
 
 #include "pe.h"
+#include "pe_utils.h"
 #include "pe_defs.h"
 #include "print.h"
 #include "graph.h"
@@ -61,7 +62,12 @@ int main(int argc, char **argv)
 
     /* Fallback to positional argument if -f was not specified */
     if (!filepath && optind < argc) {
-        filepath = argv[optind];
+        filepath = argv[optind++];
+    }
+
+    if (optind < argc) {
+        fprintf(stderr, "Error: unexpected extra input argument.\n");
+        return 1;
     }
 
     if (!filepath) {
@@ -76,6 +82,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    uint64_t file_size;
+    if (!get_file_size(file, &file_size)) {
+        fprintf(stderr, "Error: cannot determine input file size.\n");
+        fclose(file);
+        return 1;
+    }
+    int malformed = 0;
     PE_DOS_INFO dos;
     PE_FILE_HEADER file_header;
     PE_OPTIONAL_INFO optional;
@@ -91,6 +104,7 @@ int main(int argc, char **argv)
             &file_header,
             &dos,
             &optional_header_offset)) {
+        fprintf(stderr, "Error: cannot read DOS/PE/COFF headers.\n");
         fclose(file);
         return 1;
     }
@@ -99,26 +113,28 @@ int main(int argc, char **argv)
             file,
             file_header.size_of_optional_header,
             &optional)) {
+        fprintf(stderr, "Error: cannot read Optional Header.\n");
         fclose(file);
         return 1;
     }
 
-    if (directories_mode) {
-        size_t available_entries = get_available_data_directories(
-            &optional,
-            file_header.size_of_optional_header
+    size_t available_entries = get_available_data_directories(
+        &optional,
+        file_header.size_of_optional_header
+    );
+
+    if (optional.number_of_rva_and_sizes > available_entries) {
+        malformed = 1;
+        fprintf(
+            stderr,
+            "Warning: Data Directory table is truncated "
+            "(declared: %" PRIu32 ", available: %zu)\n",
+            optional.number_of_rva_and_sizes,
+            available_entries
         );
+    }
 
-        if (optional.number_of_rva_and_sizes > available_entries) {
-            fprintf(
-                stderr,
-                "Warning: Data Directory table is truncated "
-                "(declared: %" PRIu32 ", available: %zu)\n",
-                optional.number_of_rva_and_sizes,
-                available_entries
-            );
-        }
-
+    if (directories_mode) {
         directories_count = read_data_directories(
             file,
             &optional,
@@ -136,8 +152,30 @@ int main(int argc, char **argv)
     );
 
     if (!sections) {
+        fprintf(stderr, "Error: cannot read section table.\n");
         fclose(file);
         return 1;
+    }
+
+    for (size_t i = 0; i < sections_count; ++i) {
+        if (sections[i].size_of_raw_data &&
+            !file_range_valid(file_size, sections[i].pointer_to_raw_data,
+                              sections[i].size_of_raw_data)) {
+            fprintf(stderr, "Warning: section #%zu raw data extends beyond the file.\n", i + 1);
+            malformed = 1;
+        }
+    }
+    if (optional.size_of_headers > file_size) {
+        fprintf(stderr, "Warning: SizeOfHeaders exceeds file size.\n");
+        malformed = 1;
+    }
+    if (optional.address_of_entry_point) {
+        uint32_t ep;
+        if (!rva_to_file_offset(sections, sections_count, optional.size_of_headers,
+                               file_size, optional.address_of_entry_point, &ep)) {
+            fprintf(stderr, "Warning: entry point has no corresponding file byte.\n");
+            malformed = 1;
+        }
     }
 
     print_pe_info(
@@ -145,7 +183,8 @@ int main(int argc, char **argv)
         &file_header,
         &optional,
         sections,
-        sections_count
+        sections_count,
+        file_size
     );
 
     if (directories_mode) {
@@ -162,5 +201,5 @@ int main(int argc, char **argv)
     free(sections);
     fclose(file);
 
-    return 0;
+    return malformed ? 2 : 0;
 }

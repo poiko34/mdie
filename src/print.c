@@ -29,6 +29,8 @@ void print_sections(
     );
 
     for (size_t i = 0; i < count; i++) {
+        char name[9];
+        format_section_name(sections[i].name, name);
         char perms[7];
 
         get_section_perms(
@@ -57,7 +59,7 @@ void print_sections(
             "%08" PRIX32 " "
             "%-8s "
             "%-6s\n",
-            sections[i].name,
+            name,
             sections[i].virtual_address,
             sections[i].virtual_size,
             sections[i].size_of_raw_data,
@@ -73,7 +75,8 @@ void print_pe_info(
     const PE_FILE_HEADER *file_header,
     const PE_OPTIONAL_INFO *optional,
     const PE_SECTION_INFO *sections,
-    size_t count
+    size_t count,
+    uint64_t file_size
 )
 {
     printf("e_magic:         0x%04X\n", dos->e_magic);
@@ -108,9 +111,11 @@ void print_pe_info(
 
     uint32_t ep_offset;
 
-    if (rva_to_offset(
+    if (optional->address_of_entry_point && rva_to_file_offset(
             sections,
             count,
+            optional->size_of_headers,
+            file_size,
             optional->address_of_entry_point,
             &ep_offset)) {
         printf("EP File Offset:  0x%08" PRIX32 "\n", ep_offset);

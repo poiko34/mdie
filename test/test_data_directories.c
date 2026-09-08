@@ -23,6 +23,16 @@ static int tests_failed = 0;
         } \
     } while (0)
 
+static void write_u32_le(FILE *file, uint32_t value)
+{
+    unsigned char bytes[4];
+    for (size_t i = 0; i < 4; ++i) bytes[i] = (unsigned char)(value >> (i * 8));
+    if (fwrite(bytes, 1, sizeof(bytes), file) != sizeof(bytes)) {
+        fprintf(stderr, "Cannot write test fixture.\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 static void test_pe32_full(void)
 {
     PE_OPTIONAL_INFO optional = {
@@ -184,10 +194,10 @@ static void test_reads_directories(void)
     uint32_t rva1 = 0x87654321;
     uint32_t size1 = 0x200;
 
-    fwrite(&rva0, sizeof(rva0), 1, file);
-    fwrite(&size0, sizeof(size0), 1, file);
-    fwrite(&rva1, sizeof(rva1), 1, file);
-    fwrite(&size1, sizeof(size1), 1, file);
+    write_u32_le(file, rva0);
+    write_u32_le(file, size0);
+    write_u32_le(file, rva1);
+    write_u32_le(file, size1);
 
     PE_DATA_DIRECTORY directories[PE_MAX_DATA_DIRECTORIES] = {0};
 
@@ -236,10 +246,10 @@ static void test_read_does_not_exceed_available_entries(void)
     uint32_t rva1 = 0x22222222;
     uint32_t size1 = 0x200;
 
-    fwrite(&rva0, sizeof(rva0), 1, file);
-    fwrite(&size0, sizeof(size0), 1, file);
-    fwrite(&rva1, sizeof(rva1), 1, file);
-    fwrite(&size1, sizeof(size1), 1, file);
+    write_u32_le(file, rva0);
+    write_u32_le(file, size0);
+    write_u32_le(file, rva1);
+    write_u32_le(file, size1);
 
     PE_DATA_DIRECTORY directories[PE_MAX_DATA_DIRECTORIES] = {0};
 
@@ -286,8 +296,8 @@ static void test_read_truncated_file(void)
     uint32_t rva = 0x12345678;
     uint32_t size = 0x100;
 
-    fwrite(&rva, sizeof(rva), 1, file);
-    fwrite(&size, sizeof(size), 1, file);
+    write_u32_le(file, rva);
+    write_u32_le(file, size);
 
     PE_DATA_DIRECTORY directories[PE_MAX_DATA_DIRECTORIES] = {0};
 
@@ -333,10 +343,10 @@ static void test_read_pe32p_directories(void)
     uint32_t rva1 = 0x22222222;
     uint32_t size1 = 0x200;
 
-    fwrite(&rva0, sizeof(rva0), 1, file);
-    fwrite(&size0, sizeof(size0), 1, file);
-    fwrite(&rva1, sizeof(rva1), 1, file);
-    fwrite(&size1, sizeof(size1), 1, file);
+    write_u32_le(file, rva0);
+    write_u32_le(file, size0);
+    write_u32_le(file, rva1);
+    write_u32_le(file, size1);
 
     PE_DATA_DIRECTORY directories[PE_MAX_DATA_DIRECTORIES] = {0};
 

@@ -1,11 +1,76 @@
 #include <math.h>
 #include <stdint.h>
+#include <limits.h>
 
 #include "pe_utils.h"
 #include "pe_defs.h"
 
+static int read_le(FILE *file, size_t width, uint64_t *value)
+{
+    unsigned char bytes[8];
+    if (fread(bytes, 1, width, file) != width) {
+        fprintf(stderr, "Error: truncated data or read failure (%zu-byte field).\n", width);
+        return 0;
+    }
+    *value = 0;
+    for (size_t i = 0; i < width; ++i)
+        *value |= (uint64_t)bytes[i] << (8 * i);
+    return 1;
+}
+
+int read_u16_le(FILE *file, uint16_t *value)
+{
+    uint64_t v;
+    if (!read_le(file, 2, &v)) return 0;
+    *value = (uint16_t)v;
+    return 1;
+}
+
+int read_u32_le(FILE *file, uint32_t *value)
+{
+    uint64_t v;
+    if (!read_le(file, 4, &v)) return 0;
+    *value = (uint32_t)v;
+    return 1;
+}
+
+int read_u64_le(FILE *file, uint64_t *value)
+{
+    return read_le(file, 8, value);
+}
+
+int get_file_size(FILE *file, uint64_t *size)
+{
+    long position = ftell(file);
+    if (position < 0 || fseek(file, 0, SEEK_END) != 0) return 0;
+    long end = ftell(file);
+    int restored = fseek(file, position, SEEK_SET) == 0;
+    if (end < 0 || !restored) return 0;
+    *size = (uint64_t)end;
+    return 1;
+}
+
+int file_range_valid(uint64_t file_size, uint64_t offset, uint64_t size)
+{
+    return offset <= file_size && size <= file_size - offset;
+}
+
+void format_section_name(const char name[8], char output[9])
+{
+    size_t i = 0;
+    for (; i < 8 && name[i]; ++i) {
+        unsigned char c = (unsigned char)name[i];
+        output[i] = c >= 32 && c <= 126 ? (char)c : '?';
+    }
+    output[i] = '\0';
+}
+
 int skip_bytes(FILE *file, size_t n)
 {
+    uint64_t size;
+    long position = ftell(file);
+    if (position < 0 || n > LONG_MAX || !get_file_size(file, &size) ||
+        !file_range_valid(size, (uint64_t)position, n)) return 0;
     return fseek(file, (long)n, SEEK_CUR) == 0;
 }
 
@@ -32,6 +97,10 @@ int calculate_entropy(
     if (size == 0) {
         return 1;
     }
+
+    uint64_t file_size;
+    if (!get_file_size(file, &file_size) ||
+        !file_range_valid(file_size, offset, size)) return 0;
 
     long original_position = ftell(file);
 
@@ -130,4 +199,17 @@ int rva_to_offset(
     }
 
     return 0;
+}
+
+/* Resolve actual file bytes, including RVAs in the PE headers. */
+int rva_to_file_offset(const PE_SECTION_INFO *sections, size_t count,
+                       uint32_t size_of_headers, uint64_t file_size,
+                       uint32_t rva, uint32_t *offset)
+{
+    uint32_t candidate;
+    if (rva < size_of_headers) candidate = rva;
+    else if (!rva_to_offset(sections, count, rva, &candidate)) return 0;
+    if (!file_range_valid(file_size, candidate, 1)) return 0;
+    *offset = candidate;
+    return 1;
 }

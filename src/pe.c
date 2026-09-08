@@ -26,7 +26,7 @@ int read_nt_header(
     }
 
     /* DOS signature */
-    if (fread(&dos->e_magic, sizeof(dos->e_magic), 1, file) != 1) {
+    if (!read_u16_le(file, &dos->e_magic)) {
         return 0;
     }
 
@@ -43,9 +43,16 @@ int read_nt_header(
         return 0;
     }
 
-    if (fread(&dos->e_lfanew, sizeof(dos->e_lfanew), 1, file) != 1) {
+    uint32_t lfanew;
+    if (!read_u32_le(file, &lfanew)) {
         return 0;
     }
+
+    if (lfanew > INT32_MAX) {
+        fprintf(stderr, "Invalid negative e_lfanew.\n");
+        return 0;
+    }
+    dos->e_lfanew = (int32_t)lfanew;
 
     if (dos->e_lfanew < 0 ||
         dos->e_lfanew > file_size - (long)sizeof(uint32_t)) {
@@ -63,7 +70,7 @@ int read_nt_header(
 
     uint32_t signature;
 
-    if (fread(&signature, sizeof(signature), 1, file) != 1) {
+    if (!read_u32_le(file, &signature)) {
         return 0;
     }
 
@@ -73,13 +80,19 @@ int read_nt_header(
     }
 
     /* COFF/File Header */
-    if (fread(file_header, sizeof(*file_header), 1, file) != 1) {
+    if (!read_u16_le(file, &file_header->machine) ||
+        !read_u16_le(file, &file_header->number_of_sections) ||
+        !read_u32_le(file, &file_header->timestamp) ||
+        !read_u32_le(file, &file_header->pointer_to_symbol_table) ||
+        !read_u32_le(file, &file_header->number_of_symbols) ||
+        !read_u16_le(file, &file_header->size_of_optional_header) ||
+        !read_u16_le(file, &file_header->characteristics)) {
         return 0;
     }
 
     *optional_header_offset = ftell(file);
 
-    return 1;
+    return *optional_header_offset >= 0;
 }
 
 int read_optional_header(
@@ -88,9 +101,17 @@ int read_optional_header(
     PE_OPTIONAL_INFO *info
 )
 {
+    uint64_t file_size;
+    long start = ftell(file);
+    if (size_of_optional_header < 2 || start < 0 ||
+        !get_file_size(file, &file_size) ||
+        !file_range_valid(file_size, (uint64_t)start, size_of_optional_header)) {
+        fprintf(stderr, "Error: Optional Header extends beyond the file or is too small.\n");
+        return 0;
+    }
     uint16_t optional_magic;
 
-    if (fread(&optional_magic, sizeof(optional_magic), 1, file) != 1) {
+    if (!read_u16_le(file, &optional_magic)) {
         return 0;
     }
 
@@ -136,28 +157,23 @@ int read_optional_header(
         return 0;
     }
 
-    if (fread(&info->size_of_code,
-              sizeof(info->size_of_code), 1, file) != 1) {
+    if (!read_u32_le(file, &info->size_of_code)) {
         return 0;
     }
 
-    if (fread(&info->size_of_initialized_data,
-              sizeof(info->size_of_initialized_data), 1, file) != 1) {
+    if (!read_u32_le(file, &info->size_of_initialized_data)) {
         return 0;
     }
 
-    if (fread(&info->size_of_uninitialized_data,
-              sizeof(info->size_of_uninitialized_data), 1, file) != 1) {
+    if (!read_u32_le(file, &info->size_of_uninitialized_data)) {
         return 0;
     }
 
-    if (fread(&info->address_of_entry_point,
-              sizeof(info->address_of_entry_point), 1, file) != 1) {
+    if (!read_u32_le(file, &info->address_of_entry_point)) {
         return 0;
     }
 
-    if (fread(&info->base_of_code,
-              sizeof(info->base_of_code), 1, file) != 1) {
+    if (!read_u32_le(file, &info->base_of_code)) {
         return 0;
     }
 
@@ -166,31 +182,28 @@ int read_optional_header(
         uint32_t base_of_data;
         uint32_t image_base_32;
 
-        if (fread(&base_of_data, sizeof(base_of_data), 1, file) != 1) {
+        if (!read_u32_le(file, &base_of_data)) {
             return 0;
         }
 
-        if (fread(&image_base_32, sizeof(image_base_32), 1, file) != 1) {
+        if (!read_u32_le(file, &image_base_32)) {
             return 0;
         }
 
         info->image_base = image_base_32;
     } else {
         /* PE32P: already validated above */
-        if (fread(&info->image_base,
-                  sizeof(info->image_base), 1, file) != 1) {
+        if (!read_u64_le(file, &info->image_base)) {
             return 0;
         }
     }
 
     /* SectionAlignment & FileAlignment */
-    if (fread(&info->section_alignment,
-              sizeof(info->section_alignment), 1, file) != 1) {
+    if (!read_u32_le(file, &info->section_alignment)) {
         return 0;
     }
 
-    if (fread(&info->file_alignment,
-              sizeof(info->file_alignment), 1, file) != 1) {
+    if (!read_u32_le(file, &info->file_alignment)) {
         return 0;
     }
 
@@ -200,13 +213,11 @@ int read_optional_header(
     }
 
     /* SizeOfImage & SizeOfHeaders */
-    if (fread(&info->size_of_image,
-              sizeof(info->size_of_image), 1, file) != 1) {
+    if (!read_u32_le(file, &info->size_of_image)) {
         return 0;
     }
 
-    if (fread(&info->size_of_headers,
-              sizeof(info->size_of_headers), 1, file) != 1) {
+    if (!read_u32_le(file, &info->size_of_headers)) {
         return 0;
     }
 
@@ -216,13 +227,11 @@ int read_optional_header(
     }
 
     /* Subsystem & DllCharacteristics */
-    if (fread(&info->subsystem,
-              sizeof(info->subsystem), 1, file) != 1) {
+    if (!read_u16_le(file, &info->subsystem)) {
         return 0;
     }
 
-    if (fread(&info->dll_characteristics,
-              sizeof(info->dll_characteristics), 1, file) != 1) {
+    if (!read_u16_le(file, &info->dll_characteristics)) {
         return 0;
     }
 
@@ -238,8 +247,7 @@ int read_optional_header(
     }
 
     /* NumberOfRvaAndSizes */
-    if (fread(&info->number_of_rva_and_sizes,
-              sizeof(info->number_of_rva_and_sizes), 1, file) != 1) {
+    if (!read_u32_le(file, &info->number_of_rva_and_sizes)) {
         return 0;
     }
 
@@ -315,11 +323,11 @@ size_t read_data_directories(
         uint32_t virtual_address;
         uint32_t size;
 
-        if (fread(&virtual_address, sizeof(virtual_address), 1, file) != 1) {
+        if (!read_u32_le(file, &virtual_address)) {
             break;
         }
 
-        if (fread(&size, sizeof(size), 1, file) != 1) {
+        if (!read_u32_le(file, &size)) {
             break;
         }
 

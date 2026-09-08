@@ -16,7 +16,8 @@ void print_pe_info(
     const PE_FILE_HEADER *file_header,
     const PE_OPTIONAL_INFO *optional,
     const PE_SECTION_INFO *sections,
-    size_t count
+    size_t count,
+    uint64_t file_size
 );
 
 void print_data_directories(

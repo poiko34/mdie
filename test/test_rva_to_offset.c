@@ -137,8 +137,48 @@ static void test_file_offset_overflow_guard(void)
     assert(rva_to_offset(&section, 1, 0x1010, &offset) == 0);
 }
 
+static void test_checked_file_offsets(void)
+{
+    PE_SECTION_INFO section = {
+        .virtual_address = 0x1000, .virtual_size = 0x200,
+        .pointer_to_raw_data = 0x200, .size_of_raw_data = 0x200
+    };
+    uint32_t offset = 0;
+    assert(rva_to_file_offset(&section, 1, 0x200, 0x400, 0x40, &offset));
+    assert(offset == 0x40);
+    assert(rva_to_file_offset(&section, 1, 0x200, 0x400, 0x11ff, &offset));
+    assert(offset == 0x3ff);
+    assert(!rva_to_file_offset(&section, 1, 0x200, 0x3ff, 0x11ff, &offset));
+    assert(!rva_to_file_offset(&section, 1, 0x200, 0x20, 0x40, &offset));
+    assert(!file_range_valid(UINT64_MAX, UINT64_MAX - 1, 4));
+    assert(file_range_valid(1024, 512, 512));
+    assert(!file_range_valid(1024, 512, 513));
+}
+
+static void test_little_endian_readers(void)
+{
+    FILE *file = tmpfile();
+    assert(file);
+    const unsigned char bytes[] = {
+        0x34, 0x12, 0x78, 0x56, 0x34, 0x12,
+        0xef, 0xcd, 0xab, 0x89, 0x67, 0x45, 0x23, 0x01
+    };
+    assert(fwrite(bytes, 1, sizeof(bytes), file) == sizeof(bytes));
+    rewind(file);
+    uint16_t a;
+    uint32_t b;
+    uint64_t c;
+    assert(read_u16_le(file, &a) && a == 0x1234);
+    assert(read_u32_le(file, &b) && b == 0x12345678);
+    assert(read_u64_le(file, &c) && c == UINT64_C(0x0123456789abcdef));
+    assert(!skip_bytes(file, 1));
+    fclose(file);
+}
+
 int main(void)
 {
+    test_checked_file_offsets();
+    test_little_endian_readers();
     test_rva_at_section_start();
     test_rva_in_middle_of_section();
     test_rva_outside_section();

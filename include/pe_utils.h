@@ -6,6 +6,17 @@
 
 #include "pe.h"
 
+int read_u16_le(FILE *file, uint16_t *value);
+int read_u32_le(FILE *file, uint32_t *value);
+int read_u64_le(FILE *file, uint64_t *value);
+int get_file_size(FILE *file, uint64_t *size);
+int file_range_valid(uint64_t file_size, uint64_t offset, uint64_t size);
+void format_section_name(const char name[8], char output[9]);
+/* Checked conversion to an existing file byte; also handles header RVAs. */
+int rva_to_file_offset(const PE_SECTION_INFO *sections, size_t count,
+                       uint32_t size_of_headers, uint64_t file_size,
+                       uint32_t rva, uint32_t *offset);
+
 int skip_bytes(FILE *file, size_t n);
 
 void get_section_perms(
@@ -20,6 +31,8 @@ int calculate_entropy(
     double *entropy
 );
 
+/* Section-only arithmetic conversion; does not validate against EOF.
+ * Use rva_to_file_offset for untrusted file-backed addresses. */
 int rva_to_offset(
     const PE_SECTION_INFO *sections,
     size_t count,

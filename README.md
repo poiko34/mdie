@@ -136,7 +136,7 @@ make clean
 
 The project also contains standalone unit tests for PE utility functions.
 
-Run all unit tests from the project root:
+Run all unit tests and CLI regression tests from the project root (Python 3 is required for the CLI tests):
 
 ```bash
 make test
@@ -254,23 +254,23 @@ The Data Directory table is parsed according to the PE Optional Header size and 
 
 The Certificate Table is handled as a special case because its `VirtualAddress` field represents a file offset rather than an RVA.
 
-If the declared number of directories is larger than the number physically available in the Optional Header, `mdie` limits parsing to the available entries and reports a warning when directory output is requested.
+If the declared number of directories exceeds the space declared in the Optional Header, `mdie` limits parsing to the available entries and reports a warning, including without `-d`. Physically truncated headers and section tables are rejected.
 
-With `-g` / `--graph`, `mdie` additionally displays an entropy map:
+With `-g` / `--graph`, `mdie` additionally displays a color entropy map.
 
-```text
-Entropy map
+Entropy is calculated over fixed 4096-byte windows of section raw data. Terminal width only controls grouping: when several windows share a cell, its color represents their mean entropy. A `~` marks a cell containing an incomplete final window; a `?` marks an unreadable range. Incomplete windows are not presented as full-window entropy estimates. The section table still reports entropy over all raw bytes.
 
-        0.0                                                                 8.0
-        ████████████████████████████████████████████████████████████████████
+The color scale uses entropy anchors at 0, 2, 4, 6, 7 and 8 bits per byte. High entropy alone is not a determination that a file is packed or malicious.
 
-.text   ████████████████████████████████████████████████████████████████████
-.rdata  ███████████████████████████████████████████████████████████████████
-.data   ████████████████████████████████████████████████████████████████████
-.pdata  ████████████████████████████████
-```
+## Validation and exit status
 
-The entropy graph uses the actual raw bytes stored in each section. Each block represents a range of bytes from the section, and the block color corresponds to its Shannon entropy.
+* `0`: analysis completed without the implemented validation warnings.
+* `1`: input/usage error, unreadable or truncated required headers, or allocation failure.
+* `2`: report produced, but a declared directory count, raw section range, header size or entry point failed validation.
+
+Raw section ranges are checked against the actual file size. Entry-point offsets are checked against EOF and can resolve into headers. A zero entry-point RVA is displayed as having no entry-point file offset. Non-printable section-name bytes are replaced with `?` in both output modes.
+
+Serialized integer fields are decoded explicitly as little-endian values rather than reading host structures. File positioning uses C `long` (`fseek`/`ftell`); large-file support therefore depends on the host's `long` range. Passing these checks does not guarantee that Windows will load the image.
 
 ## Project structure
 
@@ -296,7 +296,8 @@ The entropy graph uses the actual raw bytes stored in each section. Each block r
 │   ├── Makefile
 │   ├── test32exe.c
 │   ├── test_data_directories.c
-│   └── test_rva_to_offset.c
+│   ├── test_rva_to_offset.c
+│   └── test_cli.py
 │
 ├── LICENSE
 ├── Makefile
@@ -315,6 +316,7 @@ The entropy graph uses the actual raw bytes stored in each section. Each block r
 * `test/test32exe.c` — source for the test PE32 executable
 * `test/test_rva_to_offset.c` — unit tests for RVA-to-file-offset conversion
 * `test/test_data_directories.c` — unit tests for Data Directory parsing
+* `test/test_cli.py` — generated PE32/PE32+ fixtures and CLI regression tests
 
 ## Design
 
