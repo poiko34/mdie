@@ -143,3 +143,71 @@ void print_pe_info(
         optional->size_of_headers
     );
 }
+
+void print_data_directories(
+    const PE_DATA_DIRECTORY *directories,
+    size_t count
+)
+{
+    static const char *const names[PE_MAX_DATA_DIRECTORIES] = {
+        "Export Table",
+        "Import Table",
+        "Resource Table",
+        "Exception Table",
+        "Certificate Table",
+        "Base Relocation Table",
+        "Debug",
+        "Architecture",
+        "Global Ptr",
+        "TLS Table",
+        "Load Config Table",
+        "Bound Import",
+        "IAT",
+        "Delay Import Descriptor",
+        "CLR Runtime Header",
+        "Reserved"
+    };
+
+    printf("\nData Directories:\n\n");
+
+    printf("%-24s %-11s %s\n", "Name", "RVA/Offset", "Size");
+    printf(
+        "------------------------ ----------- ----------\n"
+    );
+
+    for (size_t i = 0; i < PE_MAX_DATA_DIRECTORIES; i++) {
+        int present =
+            i < count &&
+            (directories[i].virtual_address != 0 ||
+             directories[i].size != 0);
+
+        if (present) {
+            char value_str[16];
+
+            snprintf(
+                value_str,
+                sizeof(value_str),
+                "0x%08" PRIX32,
+                directories[i].virtual_address
+            );
+
+            if (i == IMAGE_DIRECTORY_ENTRY_SECURITY) {
+                printf(
+                    "%-24s %-11s 0x%08" PRIX32 " (file offset)\n",
+                    names[i],
+                    value_str,
+                    directories[i].size
+                );
+            } else {
+                printf(
+                    "%-24s %-11s 0x%08" PRIX32 "\n",
+                    names[i],
+                    value_str,
+                    directories[i].size
+                );
+            }
+        } else {
+            printf("%-24s N/A\n", names[i]);
+        }
+    }
+}

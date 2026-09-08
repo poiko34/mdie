@@ -19,4 +19,9 @@ void print_pe_info(
     size_t count
 );
 
+void print_data_directories(
+    const PE_DATA_DIRECTORY *directories,
+    size_t count
+);
+
 #endif

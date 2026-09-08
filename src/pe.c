@@ -274,7 +274,7 @@ size_t read_data_directories(
     PE_DATA_DIRECTORY *directories
 )
 {
-    uint16_t standard_fields_size = (optional->magic == PE32P)
+    size_t standard_fields_size = (optional->magic == PE32P)
         ? PE32P_OPTIONAL_HEADER_MIN_SIZE
         : PE32_OPTIONAL_HEADER_MIN_SIZE;
 
