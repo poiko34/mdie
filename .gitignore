@@ -5,6 +5,7 @@
 # Binary
 /mdie
 /test/test_rva_to_offset
+/test/test_data_directories
 
 # IDE
 .vscode/
