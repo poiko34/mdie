@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.compiler }} / ${{ matrix.mode }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        mode: [normal, sanitizers]
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Show tool versions
+        run: |
+          ${{ matrix.compiler }} --version
+          make --version
+          python3 --version
+
+      - name: Build and test
+        if: matrix.mode == 'normal'
+        run: >-
+          make test CC=${{ matrix.compiler }}
+          CFLAGS='-Wall -Wextra -Wpedantic -std=c11 -O2 -g'
+
+      - name: Build and test with ASan and UBSan
+        if: matrix.mode == 'sanitizers'
+        run: >-
+          make test CC=${{ matrix.compiler }}
+          CFLAGS='-Wall -Wextra -Wpedantic -std=c11 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie'
+          LDFLAGS='-fsanitize=address,undefined -no-pie'
