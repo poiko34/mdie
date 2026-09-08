@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "compiler.h"
+#include "ui.h"
 #include "pe_utils.h"
 
 #define SCAN_LIMIT (16u * 1024u * 1024u)
@@ -188,7 +189,7 @@ static void artifact(const char *what, uint32_t offset)
 }
 void print_build_tools(const PE_BUILD_INFO *r, const PE_OPTIONAL_INFO *o)
 {
-    printf("\nBuild tool detection (heuristic)\n\n");
+    ui_heading("Build tool detection (heuristic)");
     int compilers = r->gcc + r->clang + r->msvc + r->go;
     if (compilers > 1) printf("Compiler: mixed evidence; primary compiler unknown\n");
     else if (r->clang) printf("Compiler: LLVM/Clang candidate [medium]\n");
@@ -241,6 +242,7 @@ void print_build_tools(const PE_BUILD_INFO *r, const PE_OPTIONAL_INFO *o)
 
 void print_build_summary(const PE_BUILD_INFO *r)
 {
+    ui_heading("Build tools");
     const char *compiler = "unknown";
     int count = r->gcc + r->clang + r->msvc + r->go;
     if (count > 1) compiler = "unknown (mixed evidence)";

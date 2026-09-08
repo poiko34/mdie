@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -Wpedantic -std=c11
 LDLIBS = -lm
 
 TARGET = mdie
-SRC = src/main.c src/pe.c src/sections.c src/utils.c src/print.c src/graph.c src/imports.c src/compiler.c
+SRC = src/main.c src/pe.c src/sections.c src/utils.c src/print.c src/graph.c src/imports.c src/compiler.c src/ui.c
 OBJ = $(SRC:src/%.c=build/%.o)
 TEST_TARGET = test/test_rva_to_offset
 TEST_DATA_DIR_TARGET = test/test_data_directories

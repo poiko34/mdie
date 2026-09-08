@@ -77,7 +77,8 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * Positional input file
   * `-f, --file`
   * `-d, --directories`
-  * `-i, --import`
+  * `-H, --headers`
+* `-i, --import`
 * `-g, --graph`
   * `-v, --version`
   * `-h, --help`
@@ -274,36 +275,27 @@ Show version:
 ./mdie --version
 ```
 
-## Example output
+## CLI layout
 
-A normal invocation displays the basic PE structure:
+Normal output is organized into a file banner, **Overview**, **Build tools**
+and **Sections**. Architecture and subsystem fields are decoded into names.
+Addresses remain in hex. Header internals are available explicitly:
 
-```text
-e_magic:         0x5A4D
-e_lfanew:        0x00000078
-Machine:         0x8664
-Sections:        4
-Timestamp:       0x6A9E87B9
-Characteristics: 0x0022
-Optional Header: PE32+
-Linker version:  14.00
-Entry Point:     0x00001180
-EP File Offset:  0x00000580
-Image Base:      0x0000000140000000
-Section Align:   0x00001000
-File Align:      0x00000200
-Image Size:      0x0000F000
-Header Size:     0x00000400
-
-Sections: 4
-
-Name     RVA      VSize    RawSize  RawPtr   Entropy  Flags 
--------- -------- -------- -------- -------- -------- ------
-.text    00001000 000073B6 00007400 00000400 6.49     R-XC--
-.rdata   00009000 0000040C 00000600 00007800 3.56     R---I-
-.data    0000A000 00003EA0 00001800 00007E00 6.61     RW--I-
-.pdata   0000E000 000001EC 00000200 00009600 3.80     R---I-
+```bash
+./mdie app.exe                  # compact grouped report
+./mdie -H app.exe               # add raw PE headers
+./mdie --headers -i -g app.exe  # headers, imports and entropy
 ```
+
+`-H` / `--headers` includes DOS signatures/offsets, COFF fields, timestamp,
+linker version, alignments and header sizes. `-c` still replaces the compact
+build-tool summary with detailed evidence. Other flags add clearly titled
+blocks after the section table. Section tables use a stacked layout below
+72 terminal columns; imports use stacked entries below 100 columns.
+
+Headings use ANSI color only on a terminal. Set `NO_COLOR=1` or `TERM=dumb`
+to disable colors, including the entropy map. Redirected reports contain no
+ANSI styling. Displayed filenames are sanitized and shortened to fit the banner.
 
 With `-d` / `--directories`, `mdie` additionally displays the PE Data Directory table:
 
@@ -360,6 +352,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 .
 ├── include/
 │   ├── defs.h
+│   ├── ui.h
 │   ├── compiler.h
 │   ├── imports.h
 │   ├── graph.h
@@ -369,6 +362,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 │   └── print.h
 │
 ├── src/
+│   ├── ui.c
 │   ├── compiler.c
 │   ├── imports.c
 │   ├── graph.c
@@ -399,6 +393,7 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 * `src/sections.c` — section table parsing
 * `src/print.c` — human-readable PE information
 * `src/utils.c` — shared PE utility functions
+* `src/ui.c` — shared terminal headings, color policy and file banner
 * `src/compiler.c` — build-tool evidence collection and reporting
 * `src/imports.c` — bounded import/IAT parsing with visitor callbacks
 * `src/graph.c` — entropy map visualization

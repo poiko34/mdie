@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "print.h"
+#include "ui.h"
 #include "imports.h"
 #include "pe_defs.h"
 #include "pe_utils.h"
@@ -12,7 +13,12 @@ void print_sections(
     size_t count
 )
 {
-    printf("\nSections: %zu\n\n", count);
+    char title[48];
+    snprintf(title, sizeof(title), "Sections (%zu)", count);
+    ui_heading(title);
+    if (!count) { printf("No sections.\n"); return; }
+    int compact = ui_width() < 72;
+    if (!compact) {
 
     printf(
         "%-8s %-8s %-8s %-8s %-8s %-8s %-6s\n",
@@ -28,6 +34,8 @@ void print_sections(
     printf(
         "-------- -------- -------- -------- -------- -------- ------\n"
     );
+
+    }
 
     for (size_t i = 0; i < count; i++) {
         char name[9];
@@ -52,6 +60,14 @@ void print_sections(
             snprintf(entropy_str, sizeof(entropy_str), "N/A");
         }
 
+        if (compact) {
+            printf("%-8.8s  %s  H=%s\n", name, perms, entropy_str);
+            printf("  RVA %08" PRIX32 "  Raw@ %08" PRIX32 "\n",
+                   sections[i].virtual_address, sections[i].pointer_to_raw_data);
+            printf("  VSize %" PRIu32 "  RawSize %" PRIu32 "\n",
+                   sections[i].virtual_size, sections[i].size_of_raw_data);
+            continue;
+        }
         printf(
             "%-8.8s "
             "%08" PRIX32 " "
@@ -69,8 +85,38 @@ void print_sections(
             perms
         );
     }
+    printf("Flags: R/W/X = permissions; C/I/U = code/data/uninitialized.\n");
 }
 
+static const char *machine_name(uint16_t machine)
+{
+    switch (machine) {
+        case 0x014c: return "x86";
+        case 0x8664: return "x64";
+        case 0xaa64: return "ARM64";
+        case 0xa641: return "ARM64EC";
+        case 0xa64e: return "ARM64X";
+        case 0x01c0: return "ARM";
+        case 0x01c4: return "ARM Thumb-2";
+        case 0x0200: return "IA-64";
+        default: return "unknown architecture";
+    }
+}
+static const char *subsystem_name(uint16_t subsystem)
+{
+    switch (subsystem) {
+        case 1: return "Native";
+        case 2: return "Windows GUI";
+        case 3: return "Windows Console";
+        case 7: return "POSIX Console";
+        case 9: return "Windows CE GUI";
+        case 10: return "EFI Application";
+        case 11: return "EFI Boot Service Driver";
+        case 12: return "EFI Runtime Driver";
+        case 14: return "Xbox";
+        default: return "Unknown";
+    }
+}
 void print_pe_info(
     const PE_DOS_INFO *dos,
     const PE_FILE_HEADER *file_header,
@@ -80,6 +126,37 @@ void print_pe_info(
     uint64_t file_size
 )
 {
+    (void)dos;
+    ui_heading("Overview");
+    printf("Format:          %s / %s / %s\n",
+           optional->magic == PE32 ? "PE32" : "PE32+",
+           machine_name(file_header->machine),
+           file_header->characteristics & 0x2000 ? "DLL" :
+           optional->subsystem == 1 ? "Native image" :
+           file_header->characteristics & 2 ? "EXE" : "Image");
+    printf("Subsystem:       %s (0x%04X)\n",
+           subsystem_name(optional->subsystem), optional->subsystem);
+    printf("Entry Point:     0x%08" PRIX32 " (RVA)\n", optional->address_of_entry_point);
+    uint32_t ep;
+    if (optional->address_of_entry_point &&
+        rva_to_file_offset(sections, count, optional->size_of_headers,
+                           file_size, optional->address_of_entry_point, &ep))
+        printf("EP File Offset:  0x%08" PRIX32 "\n", ep);
+    else printf("EP File Offset:  N/A\n");
+    printf("Image Base:      0x%016" PRIX64 "\n", optional->image_base);
+    printf("Image Size:      0x%08" PRIX32 "\n", optional->size_of_image);
+}
+
+void print_raw_headers(
+    const PE_DOS_INFO *dos,
+    const PE_FILE_HEADER *file_header,
+    const PE_OPTIONAL_INFO *optional,
+    const PE_SECTION_INFO *sections,
+    size_t count,
+    uint64_t file_size
+)
+{
+    ui_heading("PE headers");
     printf("e_magic:         0x%04X\n", dos->e_magic);
     printf("e_lfanew:        0x%08X\n", (uint32_t)dos->e_lfanew);
 
@@ -174,7 +251,7 @@ void print_data_directories(
         "Reserved"
     };
 
-    printf("\nData Directories:\n\n");
+    ui_heading("Data Directories");
 
     printf("%-24s %-11s %s\n", "Name", "RVA/Offset", "Size");
     printf(
@@ -220,13 +297,31 @@ void print_data_directories(
 
 static void print_import_dll(const char *name, int fallback, int bound)
 {
-    printf("\n%s%s%s\n", name, fallback ? " [FirstThunk fallback]" : "",
+    putchar('\n');
+    if (ui_color()) printf("\033[1m");
+    printf("%s", name);
+    if (ui_color()) printf("\033[0m");
+    printf("%s%s\n", fallback ? " [FirstThunk fallback]" : "",
            bound ? " [bound]" : "");
-    printf("  IAT RVA     File offset  Stored IAT value    Hint/Ord  Function\n");
+    if (ui_width() >= 100)
+        printf("  IAT RVA     File offset  Stored IAT value    Hint/Ord  Function\n");
 }
 
 static void print_import_entry(const PE_IMPORT_ENTRY *entry)
 {
+    if (ui_width() < 100) {
+        if (entry->bound_without_names) printf("  <bound address; name unavailable>\n");
+        else if (entry->by_ordinal)
+            printf("  Ordinal #%u\n", (unsigned)entry->hint_or_ordinal);
+        else {
+            printf("  %s\n", entry->name);
+            printf("    Hint: %u\n", (unsigned)entry->hint_or_ordinal);
+        }
+        printf("    IAT:  0x%08" PRIX32 "\n", entry->iat_rva);
+        printf("    File: 0x%08" PRIX32 "\n", entry->file_offset);
+        printf("    Value: 0x%016" PRIX64 "\n", entry->value);
+        return;
+    }
     printf("  0x%08" PRIX32 "  0x%08" PRIX32 "   0x%016" PRIX64 "  ",
            entry->iat_rva, entry->file_offset, entry->value);
     if (entry->bound_without_names) printf("       -  <bound address; name unavailable>\n");
@@ -239,7 +334,7 @@ int print_imports(FILE *file, const PE_OPTIONAL_INFO *optional,
                   const PE_SECTION_INFO *sections, size_t count,
                   uint64_t file_size, const PE_DATA_DIRECTORY *directory)
 {
-    printf("\nImports / IAT (file contents)\n");
+    ui_heading("Imports / IAT (file contents)");
     if (!directory->virtual_address && !directory->size) {
         printf("  No ordinary imports.\n");
         return 1;

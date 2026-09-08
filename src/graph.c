@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "graph.h"
+#include "ui.h"
 #include "pe_utils.h"
 
 #define ENTROPY_WINDOW_SIZE 1024
@@ -100,7 +101,7 @@ void print_entropy_graph(FILE *file, const PE_SECTION_INFO *sections, size_t cou
     size_t prefix = compact ? 2 : ROW_PREFIX_WIDTH;
     size_t width = terminal_width - prefix - 1;
 
-    printf("\nEntropy map\n");
+    ui_heading("Entropy map");
     printf("Each bar spans one section.\n");
     printf("Left = start; right = end.\n");
     printf("Color/density = entropy (H).\n\n");

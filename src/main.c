@@ -10,11 +10,14 @@
 #include "graph.h"
 #include "defs.h"
 #include "compiler.h"
+#include "ui.h"
 
 static void print_help(const char *prog_name)
 {
     printf("Usage: %s [OPTIONS] <file.exe>\n\n", prog_name);
-    printf("Options:\n");
+    printf("Default: overview, build tools and section table.\n\n");
+    printf("Add detail:\n");
+    printf("  -H, --headers       Show raw DOS, COFF and Optional Header fields\n");
     printf("  -f, --file <path>   Path to PE file to analyze\n");
     printf("  -d, --directories   Show PE data directories\n");
     printf("  -i, --import        Show imports and IAT slots\n");
@@ -31,8 +34,10 @@ int main(int argc, char **argv)
     int graph_mode = 0;
     int imports_mode = 0;
     int compiler_mode = 0;
+    int headers_mode = 0;
 
     static struct option const long_options[] = {
+        {"headers",     no_argument,       NULL, 'H'},
         {"file",        required_argument, NULL, 'f'},
         {"directories", no_argument,       NULL, 'd'},
         {"import",      no_argument,       NULL, 'i'},
@@ -44,8 +49,11 @@ int main(int argc, char **argv)
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:dicgvh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:Hdicgvh", long_options, NULL)) != -1) {
         switch (opt) {
+            case 'H':
+                headers_mode = 1;
+                break;
             case 'f':
                 filepath = optarg;
                 break;
@@ -192,6 +200,7 @@ int main(int argc, char **argv)
         }
     }
 
+    ui_file(filepath, file_size);
     print_pe_info(
         &dos,
         &file_header,
@@ -220,6 +229,11 @@ int main(int argc, char **argv)
         else print_build_summary(&build);
     }
 
+    print_sections(file, sections, sections_count);
+
+    if (headers_mode)
+        print_raw_headers(&dos, &file_header, &optional, sections, sections_count, file_size);
+
     if (directories_mode) {
         print_data_directories(directories, directories_count);
     }
@@ -235,7 +249,6 @@ int main(int argc, char **argv)
                                   file_size, &directories[1])) malformed = 1;
     }
 
-    print_sections(file, sections, sections_count);
 
     /* Print entropy graph only if -g / --graph flag is explicitly requested */
     if (graph_mode) {

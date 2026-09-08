@@ -131,7 +131,8 @@ class ParserTests(unittest.TestCase):
 
     def graph_output(self, data, width=80):
         p = self.run_pe(data, '-g', width=width)
-        return p.stdout.decode().split('Entropy map\r\n', 1)[1]
+        plain_titles = re.sub(r'\x1b\[(?:1;36|0|2)m', '', p.stdout.decode())
+        return plain_titles.split('Entropy map\r\n', 1)[1]
 
     def test_full_width_entropy_bars(self):
         data = fixture(size=8192)
@@ -172,6 +173,20 @@ class ParserTests(unittest.TestCase):
         self.assertIn(b'????????', p.stdout)
         p = self.run_pe(fixture(size=0, ep=0), '-g')
         self.assertIn(b'(no raw data)', p.stdout)
+
+    def test_default_groups_and_raw_headers(self):
+        p = self.run_pe(fixture())
+        self.assertEqual(p.returncode, 0, p.stderr)
+        for text in (b'Overview', b'Build tools', b'Sections (1)', b'PE32 / x86'):
+            self.assertIn(text, p.stdout)
+        self.assertNotIn(b'e_magic:', p.stdout)
+        self.assertNotIn(b'e_lfanew:', p.stdout)
+        for flag in ('-H', '--headers'):
+            p = self.run_pe(fixture(), flag)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn(b'PE headers', p.stdout)
+            self.assertIn(b'e_magic:', p.stdout)
+            self.assertIn(b'e_lfanew:', p.stdout)
 
     def test_extra_argument(self):
         p = self.run_pe(fixture(), 'unexpected.exe')
