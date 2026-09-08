@@ -71,6 +71,12 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * NB10: timestamp, age and PDB path
   * File-bound checks, overlay payloads and bounded PDB strings
 
+* Resources (`-r, --resources`)
+  * PE32/PE32+ tree: type, name/ID and language
+  * Standard `RT_*` type names, payload size, RVA and file offset
+  * `RT_VERSION`: fixed and localized version fields
+  * `RT_MANIFEST`: bounded Unicode text with terminal controls escaped
+
 * Section table
   * Section name
   * RVA
@@ -90,6 +96,7 @@ A small Linux CLI PE analyzer inspired by [Detect It Easy](https://github.com/ho
   * `-f, --file`
   * `-d, --directories`
   * `--debug`
+  * `-r, --resources`
   * `-e, --export`
 * `-H, --headers`
 * `-i, --import`
@@ -249,6 +256,71 @@ are not parsed or fetched. Without `--debug`, this additional analysis is disabl
 References: [Microsoft Debug Directory](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#debug-directory-image-only),
 [Crashpad RSDS layout](https://crashpad.chromium.org/doxygen/structcrashpad_1_1CodeViewRecordPDB70.html),
 [Crashpad NB10 layout](https://crashpad.chromium.org/doxygen/structcrashpad_1_1CodeViewRecordPDB20.html).
+
+Show the resource tree, version information and manifests:
+
+```bash
+./mdie -r app.exe
+./mdie --resources -H -d --debug app.exe
+```
+
+The resource tree uses Data Directory index 2 and three levels: type, name/ID,
+and language. Numeric types are labeled with standard names such as `RT_VERSION`,
+`RT_ICON`, `RT_GROUP_ICON`, `RT_MANIFEST`, `RT_STRING` and `RT_RCDATA`.
+Custom numeric types retain their IDs; named types and resource names are decoded
+from length-prefixed UTF-16LE. Language IDs are displayed in hexadecimal.
+Each leaf shows its size in bytes, payload RVA, file offset of its first byte
+(or `N/A`), and code page. Opaque resource contents, including icons, string tables
+and RCDATA, are not decoded in this version.
+
+For numeric `RT_VERSION` entries, the report shows `FileVersion` and
+`ProductVersion` from `VS_FIXEDFILEINFO`, labeled `[fixed]`. It also shows
+`FileVersion`, `ProductVersion`, `CompanyName`, `FileDescription` and
+`OriginalFilename` when present in `StringFileInfo`. String values are labeled
+with their eight-digit language/codepage table key (for example `[040904B0]`),
+so multiple translations and resource languages remain distinct. Fixed and
+localized version values are reported separately; missing fields are omitted.
+
+Numeric `RT_MANIFEST` entries are displayed as text. Supported encodings are
+UTF-8 (with or without BOM), UTF-16LE/BE with BOM, and BOM-less UTF-16 beginning
+with `<`. XML is not parsed, validated or resolved; external references are not
+opened. Printable Unicode is preserved. Terminal control characters, bidi
+controls and selected invisible formatting characters are escaped as `\uXXXX`;
+only manifest newlines affect layout. CRLF is normalized, lines are indented and
+long manifest lines wrap to the display width. An embedded NUL is escaped rather
+than ending the preview. Other character encodings are not decoded.
+
+Directory offsets are relative to the Resource Directory base; data entry RVAs
+are image-relative and may point outside the directory. Full declared directory
+and payload ranges must be backed by file bytes, including across section
+boundaries. Overflowing ranges, missing raw storage, invalid UTF-16/surrogate
+pairs, cycles, premature leaves and directories below the language level are
+reported as malformed. VERSIONINFO block lengths, alignment, value lengths and
+string terminators are checked. Available siblings remain visible after a bad
+branch or payload; an unreadable table stops that branch.
+
+Resource analysis and output are bounded by these limits:
+
+| Limit | Value |
+| --- | --- |
+| Resource tree entries, across the entire traversal | 1024 |
+| Resource tree depth | 3 levels: type, name/ID, language |
+| Resource name | 256 UTF-16 code units |
+| VERSIONINFO resource | 65536 bytes |
+| VERSIONINFO blocks / depth | 256 blocks / 4 levels |
+| VERSIONINFO key / string value | 64 / 1024 UTF-16 code units (value includes NUL) |
+| Manifest preview | 16384 input bytes; an incomplete final character is omitted |
+| Total version/manifest input decoded | 262144 bytes |
+
+Malformed data and reached analysis limits produce `Warning: resources:` and
+exit status `2`, including explicitly marked truncated manifest previews.
+Absent resources are reported as `No resources.` and are not an error.
+Resource traversal is enabled only with `-r` / `--resources`.
+
+References: [Microsoft resource directory format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-rsrc-section),
+[resource types](https://learn.microsoft.com/en-us/windows/win32/menurc/resource-types),
+[VS_VERSIONINFO](https://learn.microsoft.com/en-us/windows/win32/menurc/vs-versioninfo),
+[version strings](https://learn.microsoft.com/en-us/windows/win32/menurc/string-str).
 
 Show ordinary imports and their Import Address Table (IAT) slots:
 
@@ -411,7 +483,7 @@ Blue means low entropy; green/yellow intermediate; red high. Without a terminal,
 
 * `0`: analysis completed without the implemented validation warnings.
 * `1`: input/usage error, unreadable or truncated required headers, or allocation failure.
-* `2`: report produced, but a declared directory count, raw section range, header size, entry point or requested import/export/debug analysis failed validation, or build-tool analysis was incomplete.
+* `2`: report produced, but a declared directory count, raw section range, header size, entry point or requested import/export/debug/resource analysis failed validation, or an analysis was incomplete (including resource preview limits).
 
 Raw section ranges are checked against the actual file size. Entry-point offsets are checked against EOF and can resolve into headers. A zero entry-point RVA is displayed as having no entry-point file offset. Non-printable section-name bytes are replaced with `?` in both output modes.
 
@@ -421,17 +493,21 @@ Serialized integer fields are decoded explicitly as little-endian values rather 
 
 | Directory | Responsibility |
 | --- | --- |
-| `src/pe/` | Header and section parsing, RVA/file utilities, import/export tables, Debug Directory and CodeView. |
+| `src/pe/` | Header and section parsing, RVA/file utilities, import/export tables, Debug Directory/CodeView, resource trees and payload decoding. |
 | `src/analysis/` | Entropy calculation and heuristic build-tool detection. |
-| `src/cli/` | Arguments, tables, build-tool and debug presentation, terminal formatting and entropy map. |
+| `src/cli/` | Arguments, tables, build-tool/debug/resource presentation, terminal formatting and entropy map. |
 | `include/pe/` | PE models, constants and parser interfaces. |
 | `include/analysis/` | Entropy and build-tool analysis interfaces. |
 | `include/cli/` | CLI output interfaces and `version.h`. |
 | `test/` | C unit tests, generated PE regression fixtures and optional MinGW test build. |
 
-Parsing callbacks describe imports/exports/debug entries without depending on terminal layout.
+Parsing callbacks describe imports/exports/debug/resource entries without depending on terminal layout.
 `src/pe/debug.c` decodes Debug Directory and CodeView records;
 `src/cli/debug_output.c` renders their types, identifiers and sanitized PDB paths.
+`src/pe/resources.c` walks resource trees; `resource_version.c` and
+`resource_text.c` decode version blocks and Unicode. Their private interfaces
+are in `src/pe/resources_internal.h`; `include/pe/resources.h` exposes callbacks.
+`src/cli/resources_output.c` renders the tree and escapes untrusted text.
 Compiler detection produces `PE_BUILD_INFO`; `src/cli/build_output.c` renders it.
 `src/analysis/entropy.c` calculates entropy; `src/cli/graph.c` draws it.
 Shared includes use explicit paths such as `pe/image.h` and `analysis/compiler.h`.
